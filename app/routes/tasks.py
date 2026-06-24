@@ -24,7 +24,7 @@ def login():
         user = User.query.filter_by(email=email).first()
         
         if user and user.check_password(password):
-            login_user(user)
+            login_user(user, remember=True) # תומך בזכירת המשתמש לטווח ארוך
             flash(f"ברוך הבא, {user.username}!", "success")
             return redirect(url_for("tasks.index"))
         else:
@@ -70,7 +70,7 @@ def logout():
 # 📋 ניהול משימות (Core Task Management)
 # =========================================================
 
-# --- עמוד הבית (רשימת משימות + סינון + מיון + עימוד) ---
+# --- עמוד הבית ---
 @bp.route("/", methods=["GET", "POST"])
 @login_required
 def index():
@@ -83,14 +83,13 @@ def index():
             description=request.form.get("description", ""),
             due_date=due_date,
             priority=request.form.get("priority", "LOW"),
-            user_id=current_user.id  # שיוך המשימה למשתמש המחובר
+            user_id=current_user.id
         )
         db.session.add(task)
         db.session.commit()
         flash("המשימה נוצרה בהצלחה!", "success")
         return redirect(url_for("tasks.index"))
 
-    # קליטת פרמטרים מכתובת ה-URL עבור חיפושים וסינונים
     search_query = request.args.get("search", "")
     status_filter = request.args.get("status", "")
     priority_filter = request.args.get("priority", "")
@@ -98,10 +97,8 @@ def index():
     sort_by = request.args.get("sort", "created_at")
     order = request.args.get("order", "desc")
 
-    # שליפת משימות השייכות אך ורק למשתמש המחובר
     query = Task.query.filter_by(user_id=current_user.id)
 
-    # החלת סינונים במידה ונבחרו
     if search_query:
         query = query.filter((Task.title.contains(search_query)) | (Task.description.contains(search_query)))
     if status_filter:
@@ -109,7 +106,6 @@ def index():
     if priority_filter:
         query = query.filter(Task.priority == priority_filter)
 
-    # לוגיקת מיון דינמי
     if sort_by == "due_date":
         query = query.order_by(Task.due_date.asc() if order == "asc" else Task.due_date.desc())
     elif sort_by == "priority":
@@ -117,7 +113,6 @@ def index():
     else:
         query = query.order_by(Task.created_at.asc() if order == "asc" else Task.created_at.desc())
 
-    # חלוקה לעמודים (Pagination) - 5 משימות לעמוד
     pagination = db.paginate(query, page=page, per_page=5, error_out=False)
     tasks = pagination.items
 
@@ -127,7 +122,6 @@ def index():
 @bp.route("/done/<int:id>")
 @login_required
 def done(id):
-    # מוודאים שהמשימה קיימת ושייכת למשתמש הנוכחי
     task = Task.query.filter_by(id=id, user_id=current_user.id).first_or_404()
     task.status = "DONE"
     db.session.commit()
@@ -144,24 +138,20 @@ def delete(id):
     flash("המשימה נמחקה בהצלחה.", "danger")
     return redirect(url_for("tasks.index"))
 
-# --- עריכת משימה קיימת ---
+# --- עריכת משימה ---
 @bp.route("/edit/<int:id>", methods=["GET", "POST"])
 @login_required
 def edit(id):
     task = Task.query.filter_by(id=id, user_id=current_user.id).first_or_404()
-    
     if request.method == "POST":
         due_date_str = request.form.get("due_date")
         task.due_date = datetime.strptime(due_date_str, "%Y-%m-%d").date() if due_date_str else None
-        
         task.title = request.form.get("title", "")
         task.description = request.form.get("description", "")
         task.priority = request.form.get("priority", "LOW")
-        
         db.session.commit()
         flash("השינויים נשמרו.", "success")
         return redirect(url_for("tasks.index"))
-        
     return render_template("edit_task.html", task=task)
 
 
@@ -174,15 +164,12 @@ def edit(id):
 @login_required
 def kanban():
     tasks = Task.query.filter_by(user_id=current_user.id).all()
-    
-    # מיון המשימות הפרטיות ל-3 עמודות הלוח
     todo = [t for t in tasks if t.status == "TODO" or not t.status]
     in_progress = [t for t in tasks if t.status == "IN_PROGRESS"]
     done = [t for t in tasks if t.status == "DONE"]
-    
     return render_template("kanban.html", todo=todo, in_progress=in_progress, done=done)
 
-# --- עדכון סטטוס שקט בעקבות גרירה בקאנבן (AJAX API) ---
+# --- עדכון סטטוס גרירה ---
 @bp.route("/update_status/<int:id>", methods=["POST"])
 @login_required
 def update_status(id):
@@ -190,12 +177,10 @@ def update_status(id):
     if task:
         data = request.get_json()
         new_status = data.get("status")
-        
         if new_status in ["TODO", "IN_PROGRESS", "DONE"]:
             task.status = new_status
             db.session.commit()
             return jsonify({"success": True})
-            
     return jsonify({"success": False}), 400
 
 # --- תצוגת לוח שנה ---
@@ -204,48 +189,50 @@ def update_status(id):
 def calendar():
     return render_template("calendar.html")
 
-# --- נקודת קצה (API) שמזינה את המשימות ללוח השנה בפורמט JSON ---
+# --- API לוח שנה ---
 @bp.route("/api/calendar_tasks")
 @login_required
 def calendar_tasks():
-    # שולפים רק משימות בעלות תאריך יעד ששייכות למשתמש הנוכחי
     tasks = Task.query.filter_by(user_id=current_user.id).filter(Task.due_date.isnot(None)).all()
     events = []
-    
     for t in tasks:
-        # התאמת צבעים לפי סטטוס ועדיפות
-        if t.status == "DONE":
-            color = "#22c55e" # ירוק
-        elif t.priority == "HIGH":
-            color = "#ef4444" # אדום
-        elif t.priority == "MEDIUM":
-            color = "#f59e0b" # צהוב
-        else:
-            color = "#3b82f6" # כחול
-
-        events.append({
-            "id": t.id,
-            "title": t.title,
-            "start": t.due_date.isoformat(),
-            "backgroundColor": color,
-            "borderColor": color,
-            "url": f"/edit/{t.id}"
-        })
-        
+        color = "#22c55e" if t.status == "DONE" else ("#ef4444" if t.priority == "HIGH" else ("#f59e0b" if t.priority == "MEDIUM" else "#3b82f6"))
+        events.append({ "id": t.id, "title": t.title, "start": t.due_date.isoformat(), "backgroundColor": color, "borderColor": color, "url": f"/edit/{t.id}" })
     return jsonify(events)
 
 
 # =========================================================
-# 🛠️ כלי תחזוקה וסנכרון (Database Fix Patch)
+# 🛠️ כלי תחזוקה מתקדם (Database Fix Patch)
 # =========================================================
 
-# --- ראוט סודי להזרקת עמודת המשתמש למסד הנתונים הקיים ללא מחיקה ---
+# --- עדכון סודי משופר: יוצר את טבלת המשתמשים ידנית ללא מחיקת משימות ---
 @bp.route("/fix-db")
 def fix_db():
+    output = []
+    
+    # 1. ניסיון ליצור את טבלת המשתמשים (User)
     try:
-        # פקודה ידנית שמוסיפה את העמודה user_id לטבלה הקיימת ב-PostgreSQL
+        db.session.execute(text('''
+            CREATE TABLE IF NOT EXISTS "user" (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(64) NOT NULL UNIQUE,
+                email VARCHAR(120) NOT NULL UNIQUE,
+                password_hash VARCHAR(256) NOT NULL
+            );
+        '''))
+        db.session.commit()
+        output.append("✅ טבלת המשתמשים (user) נוצרה/אומתה בהצלחה.")
+    except Exception as e:
+        output.append(f"❌ שגיאה ביצירת טבלת המשתמשים: {e}")
+        db.session.rollback()
+
+    # 2. ניסיון להוסיף את עמודת הקישור user_id לטבלת המשימות
+    try:
         db.session.execute(text('ALTER TABLE task ADD COLUMN user_id INTEGER;'))
         db.session.commit()
-        return "✅ מסד הנתונים תוקן בהצלחה! העמודה user_id נוספה לטבלת המשימות שלך. ניתן לחזור לאתר."
+        output.append("✅ עמודת user_id נוספה בהצלחה לטבלת המשימות.")
     except Exception as e:
-        return f"נראה שהעמודה כבר קיימת שם, או שיש שגיאה אחרת: {e}"
+        output.append("ℹ️ עמודת user_id כבר קיימת בטבלת המשימות.")
+        db.session.rollback()
+
+    return "<br>".join(output) + "<br><br><b>המערכת מוכנה! כעת כנס לעמוד הרישום ופתח חשבון קבוע.</b>"
