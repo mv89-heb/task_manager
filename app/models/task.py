@@ -10,5 +10,5 @@ class Task(db.Model):
     priority = db.Column(db.String(20), default="LOW")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    # קישור למשתמש שיצר את המשימה
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    # שינינו כאן ל-True כדי לאפשר למשימות הישנות שלך להישאר במערכת
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
