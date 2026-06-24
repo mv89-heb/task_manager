@@ -5,6 +5,10 @@ from config import Config
 
 db = SQLAlchemy()
 login_manager = LoginManager()
+# הגדרת עמוד ברירת המחדל להתחברות
+login_manager.login_view = 'tasks.login'
+login_manager.login_message = 'אנא התחבר כדי לגשת לעמוד זה.'
+login_manager.login_message_category = 'danger'
 
 def create_app():
     app = Flask(__name__)
@@ -23,8 +27,8 @@ def create_app():
         app.register_blueprint(task_bp)
         app.register_blueprint(dash_bp)
 
-        # ⚠️ מרעננים את מסד הנתונים כדי לוודא ששדה ה-status קיים בטבלה האמיתית ב-PostgreSQL
-        
+        # ⚠️ הפעלה חד פעמית כדי לעדכן את הטבלאות עם עמודת הקישור החדשה user_id
+        db.drop_all()
         db.create_all()
 
     return app
