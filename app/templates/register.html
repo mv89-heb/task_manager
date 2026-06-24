@@ -1,5 +1,27 @@
-<form method="POST">
-    <input name="email" type="email" placeholder="אימייל" required>
-    <input name="password" type="password" placeholder="סיסמה" required>
-    <button type="submit">Register</button>
-</form>
+{% extends "base.html" %}
+{% block content %}
+
+<div class="row justify-content-center align-items-center" style="min-height: 70vh;">
+    <div class="col-md-4">
+        <div class="card-modern shadow-sm p-4 text-center">
+            
+            <h4 class="fw-bold mb-2">🚀 הרשמה ופתיחת חשבון</h4>
+            <p class="text-muted small mb-4">הצטרף אלינו ונהל את המשימות שלך בצורה חכמה</p>
+            
+            <form method="POST">
+                <input type="text" name="username" class="form-control mb-3" placeholder="שם משתמש מלא" required autocomplete="username">
+                <input type="email" name="email" class="form-control mb-3" placeholder="כתובת אימייל" required autocomplete="email">
+                <input type="password" name="password" class="form-control mb-4" placeholder="בחר סיסמה מאובטחת" required autocomplete="new-password">
+                
+                <button type="submit" class="btn btn-primary w-100 py-2 mb-3">צור חשבון חדש</button>
+            </form>
+            
+            <div class="small text-muted border-top pt-3 mt-2">
+                כבר רשום במערכת? <a href="/login" class="text-dark text-decoration-none fw-semibold">לחץ כאן להתחברות</a>
+            </div>
+            
+        </div>
+    </div>
+</div>
+
+{% endblock %}
