@@ -1,13 +1,10 @@
-from flask import Blueprint, render_template
-from app.models.task import Task
+import os
 
-bp = Blueprint("dashboard", __name__)
+database_url = os.environ.get('DATABASE_URL')
 
-@bp.route("/dashboard")
-def dashboard():
-    tasks = Task.query.all()
-    return render_template(
-        "dashboard.html",
-        total=len(tasks),
-        done=len([t for t in tasks if t.status=="DONE"])
-    )
+if database_url and database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+class Config:
+    SQLALCHEMY_DATABASE_URI = database_url or 'sqlite:///db.sqlite3'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
