@@ -12,6 +12,7 @@ bp = Blueprint("tasks", __name__)
 # 🔒 מערכת ניהול משתמשים (Authentication)
 # =========================================================
 
+# --- עמוד התחברות ---
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
@@ -23,7 +24,7 @@ def login():
         user = User.query.filter_by(email=email).first()
         
         if user and user.check_password(password):
-            login_user(user, remember=True)
+            login_user(user, remember=True) # שומר על החיבור פעיל גם לאחר סגירת הדפדפן
             flash(f"ברוך הבא, {user.username}!", "success")
             return redirect(url_for("tasks.index"))
         else:
@@ -31,30 +32,44 @@ def login():
             
     return render_template("login.html")
 
+# --- עמוד הרשמה מתוקן ומאובטח ---
 @bp.route("/register", methods=["GET", "POST"])
 def register():
     if current_user.is_authenticated:
         return redirect(url_for("tasks.index"))
         
     if request.method == "POST":
-        username = request.form.get("username")
-        email = request.form.get("email")
+        username = request.form.get("username").strip()
+        email = request.form.get("email").strip()
         password = request.form.get("password")
         
-        if User.query.filter_by(email=email).first():
-            flash("כתובת האימייל כבר קיימת במערכת.", "danger")
+        # בדיקה האם שם המשתמש או האימייל כבר תפוסים במערכת
+        if User.query.filter_by(email=email).first() or User.query.filter_by(username=username).first():
+            flash("שם המשתמש או כתובת האימייל כבר קיימים במערכת.", "danger")
             return redirect(url_for("tasks.register"))
             
-        user = User(username=username, email=email)
-        user.set_password(password)
-        db.session.add(user)
-        db.session.commit()
-        
-        flash("נרשמת בהצלחה! כעת ניתן להתחבר.", "success")
-        return redirect(url_for("tasks.login"))
+        try:
+            # יצירת המשתמש החדש והצפנת הסיסמה שלו
+            user = User(username=username, email=email)
+            user.set_password(password)
+            
+            db.session.add(user)
+            db.session.commit() # שמירה פיזית בדיסק של מסד הנתונים
+            
+            # 🔥 התיקון: מחברים את המשתמש החדש בצורה רשמית למערכת הסשן
+            login_user(user, remember=True)
+            
+            flash("החשבון שלך נוצר בהצלחה וברוך הבא לאפליקציה! 🎉", "success")
+            return redirect(url_for("tasks.index"))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f"שגיאה ברישום המשתמש: {e}", "danger")
+            return redirect(url_for("tasks.register"))
         
     return render_template("register.html")
 
+# --- התנתקות ---
 @bp.route("/logout")
 @login_required
 def logout():
@@ -191,7 +206,7 @@ def calendar_tasks():
 
 
 # =========================================================
-# 🛠️ כלי תחזוקה וגיבוי (Database Rescue)
+# 🛠️ כלי תחזוקה וסנכרון (Database Fix Patch)
 # =========================================================
 
 @bp.route("/fix-db")
@@ -220,7 +235,7 @@ def fix_db():
         output.append("ℹ️ עמודת user_id כבר קיימת בטבלת המשימות.")
         db.session.rollback()
 
-    return "<br>".join(output) + "<br><br><b>המערכת מוכנה! כעת כנס לעמוד הרישום ופתח חשבון קבוע.</b>"
+    return "<br>".join(output) + "<br><br><b>المערכת מוכנה! כעת כנס לעמוד הרישום ופתח חשבון קבוע.</b>"
 
 # --- דלת אחורית לחילוץ המשתמש מבלי למחוק את מסד הנתונים ---
 @bp.route("/rescue")
