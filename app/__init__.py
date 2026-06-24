@@ -10,6 +10,10 @@ def create_app():
 
     db.init_app(app)
 
+    # ✅ IMPORT CRITICAL (מאוד חשוב!)
+    from app.models.user import User
+    from app.models.task import Task
+
     from app.routes.tasks import bp as task_bp
     from app.routes.dashboard import bp as dash_bp
 
