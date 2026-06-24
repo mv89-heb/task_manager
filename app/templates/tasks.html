@@ -5,9 +5,9 @@
 
 <div class="col-md-4">
 <div class="card-modern p-4 shadow-sm">
-    <h6 class="mb-3">➕ משימה חדשה</h6>
+    <h6 class="mb-3">➕ משימה חדשה (לחץ N)</h6>
     <form method="POST">
-        <input name="title" class="form-control mb-3" placeholder="שם המשימה (חובה)" required>
+        <input id="titleInput" name="title" class="form-control mb-3" placeholder="שם המשימה (חובה)" required>
         <textarea name="description" class="form-control mb-3" rows="3" placeholder="פירוט המשימה..."></textarea>
         
         <label class="form-label small text-muted">תאריך יעד:</label>
@@ -26,13 +26,11 @@
 <div class="col-md-8">
 
 <div class="card-modern shadow-sm mb-4">
-    <div class="p-3 bg-light rounded">
+    <div class="p-3 bg-light rounded" style="background: var(--bs-tertiary-bg) !important;">
         <form method="GET" action="/" class="row g-2 align-items-center">
-            
             <div class="col-md-4">
-                <input type="text" name="search" class="form-control" placeholder="🔍 חיפוש חופשי..." value="{{ request.args.get('search', '') }}">
+                <input id="searchInput" type="text" name="search" class="form-control" placeholder="🔍 חיפוש (לחץ /)" value="{{ request.args.get('search', '') }}">
             </div>
-            
             <div class="col-md-3">
                 <select name="status" class="form-select">
                     <option value="">כל הסטטוסים</option>
@@ -40,7 +38,6 @@
                     <option value="DONE" {% if request.args.get('status') == 'DONE' %}selected{% endif %}>הושלמו</option>
                 </select>
             </div>
-            
             <div class="col-md-3">
                 <select name="priority" class="form-select">
                     <option value="">כל העדיפויות</option>
@@ -49,29 +46,27 @@
                     <option value="LOW" {% if request.args.get('priority') == 'LOW' %}selected{% endif %}>נמוכה</option>
                 </select>
             </div>
-            
             <div class="col-md-2 d-flex gap-2">
                 <button type="submit" class="btn btn-primary w-100">סנן</button>
                 <a href="/" class="btn btn-outline-secondary w-100">נקה</a>
             </div>
-            
         </form>
     </div>
 </div>
 
 <div class="card-modern shadow-sm">
     <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
-        <h6 class="m-0">📋 משימות</h6>
-        <span class="badge bg-secondary">{{tasks|length}} תוצאות</span>
+        <h6 class="m-0">📋 משימות (עמוד {{pagination.page}} מתוך {{pagination.pages}})</h6>
+        <span class="badge bg-secondary">{{pagination.total}} תוצאות בסך הכל</span>
     </div>
 
     {% if tasks %}
-    <table class="table align-middle mb-0">
+    <table class="table align-middle mb-0 table-hover">
         <thead class="table-light">
             <tr>
                 <th>פרטי המשימה</th>
-                <th>יעד</th>
-                <th>סטטוס</th>
+                <th><a href="?sort=due_date&order={% if sort_by == 'due_date' and order == 'asc' %}desc{% else %}asc{% endif %}" class="text-decoration-none text-dark">יעד ↕</a></th>
+                <th><a href="?sort=priority&order={% if sort_by == 'priority' and order == 'asc' %}desc{% else %}asc{% endif %}" class="text-decoration-none text-dark">סטטוס ↕</a></th>
                 <th class="text-end">פעולות</th>
             </tr>
         </thead>
@@ -115,15 +110,40 @@
             {% endfor %}
         </tbody>
     </table>
+    
+    <div class="p-3 d-flex justify-content-center">
+        <ul class="pagination pagination-sm m-0">
+            <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                <a class="page-link" href="?page={{ pagination.prev_num }}&sort={{sort_by}}&order={{order}}">הקודם</a>
+            </li>
+            <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                <a class="page-link" href="?page={{ pagination.next_num }}&sort={{sort_by}}&order={{order}}">הבא</a>
+            </li>
+        </ul>
+    </div>
     {% else %}
     <div class="p-4 text-center text-muted">
         לא נמצאו משימות שתואמות לסינון.
     </div>
     {% endif %}
+</div>
+</div>
+</div>
 
-</div>
-</div>
+<script>
+document.addEventListener('keydown', function(e) {
+    // מניעת הפעלה אם המשתמש כבר מקליד בתוך שדה טקסט
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
-</div>
+    if (e.key === 'n' || e.key === 'מ') {
+        e.preventDefault(); // מונע הקלדה של האות עצמה
+        document.getElementById('titleInput').focus();
+    }
+    if (e.key === '/') {
+        e.preventDefault(); 
+        document.getElementById('searchInput').focus();
+    }
+});
+</script>
 
 {% endblock %}
