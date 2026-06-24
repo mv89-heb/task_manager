@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="row justify-content-center">
+
+<div class="col-md-6">
+
+<div class="card-modern p-4 shadow-sm">
+
+<h5 class="mb-3">✏ עריכת משימה</h5>
+
+<form method="POST">
+
+<input name="title" class="form-control mb-3" value="{{task.title}}">
+
+<select name="priority" class="form-select mb-3">
+
+<option value="LOW" {% if task.priority=="LOW" %}selected{% endif %}>נמוכה</option>
+<option value="MEDIUM" {% if task.priority=="MEDIUM" %}selected{% endif %}>בינונית</option>
+<option value="HIGH" {% if task.priority=="HIGH" %}selected{% endif %}>גבוהה</option>
+
+</select>
+
+<button class="btn btn-dark w-100">שמור</button>
+
+</form>
+
+</div>
+
+</div>
+
+</div>
+
+{% endblock %}
+``
