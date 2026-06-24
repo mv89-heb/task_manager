@@ -111,3 +111,37 @@ def update_status(id):
             return jsonify({"success": True})
             
     return jsonify({"success": False}), 400
+
+# --- חדש: תצוגת לוח שנה ---
+@bp.route("/calendar")
+def calendar():
+    return render_template("calendar.html")
+
+# --- חדש: API שמחזיר משימות בפורמט מותאם ליומן גוגל/FullCalendar ---
+@bp.route("/api/calendar_tasks")
+def calendar_tasks():
+    # מושכים רק משימות שיש להן תאריך יעד
+    tasks = Task.query.filter(Task.due_date.isnot(None)).all()
+    events = []
+    
+    for t in tasks:
+        # קביעת צבע דינמי למשימה בלוח השנה
+        if t.status == "DONE":
+            color = "#22c55e" # ירוק למשימה שהושלמה
+        elif t.priority == "HIGH":
+            color = "#ef4444" # אדום למשימה דחופה
+        elif t.priority == "MEDIUM":
+            color = "#f59e0b" # צהוב/כתום לבינונית
+        else:
+            color = "#3b82f6" # כחול לרגילה/נמוכה
+
+        events.append({
+            "id": t.id,
+            "title": t.title,
+            "start": t.due_date.isoformat(), # המרה לטקסט בתבנית YYYY-MM-DD
+            "backgroundColor": color,
+            "borderColor": color,
+            "url": f"/edit/{t.id}" # בלחיצה המשתמש יועבר ישר לעריכת המשימה
+        })
+        
+    return jsonify(events)
