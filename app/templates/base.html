@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="he" dir="rtl" data-bs-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,11 +7,11 @@
     <title>מערכת ניהול משימות</title>
     <style>
         body {
-            background: #f8fafc;
+            background: var(--bs-body-bg);
             font-family: 'Segoe UI', Tahoma, sans-serif;
             margin: 0;
+            transition: background 0.3s, color 0.3s;
         }
-        /* Sidebar */
         .sidebar {
             width: 240px;
             height: 100vh;
@@ -22,6 +22,7 @@
             color: #fff;
             display: flex;
             flex-direction: column;
+            z-index: 1000;
         }
         .sidebar-header {
             padding: 20px;
@@ -39,11 +40,7 @@
             transition: 0.2s;
             border-right: 4px solid transparent;
         }
-        .sidebar a:hover {
-            background: #1f2937;
-            color: white;
-        }
-        /* העיצוב החדש לעמוד הפעיל */
+        .sidebar a:hover { background: #1f2937; color: white; }
         .sidebar a.active {
             background: #1f2937;
             color: white;
@@ -51,8 +48,42 @@
             font-weight: 600;
         }
         .content { margin-right: 240px; padding: 30px; }
-        .card-modern { border: none; border-radius: 12px; background: #ffffff; }
-        .topbar { background: white; border-radius: 12px; padding: 10px 20px; margin-bottom: 20px; }
+        .card-modern { 
+            border: 1px solid var(--bs-border-color); 
+            border-radius: 12px; 
+            background: var(--bs-card-bg, #ffffff); 
+            padding: 20px;
+        }
+        .topbar { 
+            background: var(--bs-tight-bg, white); 
+            border: 1px solid var(--bs-border-color);
+            border-radius: 12px; 
+            padding: 15px 20px; 
+            margin-bottom: 20px; 
+        }
+        /* עיצוב מערכת ההודעות הקופצות */
+        .toast-container-custom {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .custom-toast {
+            min-width: 250px;
+            padding: 15px 20px;
+            border-radius: 10px;
+            color: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideIn 0.3s ease-out forward;
+            transition: opacity 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(-100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
         @media (max-width: 768px) {
             .sidebar { width: 100%; height: auto; position: relative; }
             .content { margin-right: 0; }
@@ -61,21 +92,90 @@
 </head>
 <body>
 
+<div class="toast-container-custom" id="toastContainer"></div>
+
 <div class="sidebar">
-    <div class="sidebar-header">
-        🚀 TaskManager
-    </div>
+    <div class="sidebar-header">🚀 TaskManager</div>
     <a href="/" class="{% if request.endpoint == 'tasks.index' %}active{% endif %}">🏠 ניהול משימות</a>
     <a href="/dashboard" class="{% if request.endpoint == 'dashboard.dashboard' %}active{% endif %}">📈 דשבורד מנהלים</a>
 </div>
 
 <div class="content">
     <div class="topbar shadow-sm d-flex justify-content-between align-items-center">
-        <div class="fw-semibold">סביבת עבודה</div>
-        <div class="text-muted small">גירסה 1.0</div>
+        <div class="fw-semibold">סביבת עבודה משודרגת</div>
+        
+        <button class="btn btn-sm btn-outline-secondary" id="themeToggleBtn" onclick="toggleTheme()">
+            🌙 מצב כהה
+        </button>
     </div>
     {% block content %}{% endblock %}
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+<script>
+    // --- מנגנון ניהול מצב כהה חכם ---
+    const htmlTag = document.documentElement;
+    const themeBtn = document.getElementById('themeToggleBtn');
+
+    // טעינת המצב שנשמר בדפדפן
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    htmlTag.setAttribute('data-bs-theme', savedTheme);
+    updateButtonText(savedTheme);
+
+    function toggleTheme() {
+        const currentTheme = htmlTag.getAttribute('data-bs-theme');
+        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        
+        htmlTag.setAttribute('data-bs-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+        updateButtonText(newTheme);
+    }
+
+    function updateButtonText(theme) {
+        themeBtn.innerHTML = theme === 'light' ? '🌙 מצב כהה' : '☀️ מצב בהיר';
+    }
+
+    // --- מנגנון הודעות קופצות וקונפטי מבוסס פלאסק ---
+    function createToast(message, type) {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `custom-toast`;
+        
+        // צבעים לפי סוג ההודעה
+        if (type === 'danger') toast.style.background = '#ef4444';      // אדום
+        else if (type === 'confetti') toast.style.background = '#10b981'; // ירוק בהיר לקונפטי
+        else toast.style.background = '#22c55e';                         // ירוק רגיל להצלחה
+        
+        toast.innerText = message;
+        container.appendChild(toast);
+
+        // מחיקה אוטומטית אחרי 3 שניות עם אפקט דעיכה
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
+    // קריאת ההודעות שנשלחו מהשרת (Flask Flash)
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                createToast("{{ message }}", "{{ category }}");
+                
+                // אם הקטגוריה היא קונפטי - נפעיל את פיצוץ הצבעים!
+                if ("{{ category }}" === "confetti") {
+                    confetti({
+                        particleCount: 150,
+                        spread: 80,
+                        origin: { y: 0.6 }
+                    });
+                }
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</script>
 
 </body>
 </html>
