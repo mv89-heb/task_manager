@@ -15,7 +15,7 @@
 <textarea name="description" class="form-control mb-3" rows="3" placeholder="פירוט המשימה..."></textarea>
 
 <label class="form-label small text-muted">תאריך יעד:</label>
-<input type="date" name="due_date" class="form-control mb-3">
+<input type="text" name="due_date" class="form-control mb-3" placeholder="בחר תאריך יעד" onfocus="(this.type='date')" onblur="if(!this.value) this.type='text'">
 
 <select name="priority" class="form-select mb-3">
 <option value="LOW">עדיפות נמוכה</option>
