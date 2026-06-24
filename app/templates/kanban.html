@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+    .kanban-board {
+        display: flex;
+        gap: 20px;
+        overflow-x: auto;
+        padding-bottom: 20px;
+    }
+    .kanban-col {
+        flex: 1;
+        min-width: 300px;
+        background: var(--bs-tertiary-bg);
+        border-radius: 12px;
+        padding: 15px;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid var(--bs-border-color);
+    }
+    .kanban-col-header {
+        font-weight: bold;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid var(--bs-border-color);
+        display: flex;
+        justify-content: space-between;
+    }
+    .kanban-tasks {
+        flex: 1;
+        min-height: 200px;
+    }
+    .kanban-card {
+        background: var(--bs-card-bg);
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        margin-bottom: 15px;
+        cursor: grab;
+        border: 1px solid var(--bs-border-color);
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .kanban-card:active {
+        cursor: grabbing;
+        transform: scale(1.02);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    .kanban-card.sortable-ghost {
+        opacity: 0.4;
+        background: #e2e8f0;
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="m-0 fw-bold">📋 לוח קאנבן</h4>
+</div>
+
+<div class="kanban-board">
+    
+    <div class="kanban-col">
+        <div class="kanban-col-header">
+            <span>לביצוע</span>
+            <span class="badge bg-secondary">{{todo|length}}</span>
+        </div>
+        <div class="kanban-tasks" id="col-TODO" data-status="TODO">
+            {% for t in todo %}
+            <div class="kanban-card" data-id="{{t.id}}">
+                <div class="fw-bold mb-1">{{t.title}}</div>
+                {% if t.priority == 'HIGH' %}<span class="badge bg-danger mb-2">דחוף</span>{% endif %}
+                <div class="small text-muted">{{t.description|truncate(40) if t.description else ''}}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="kanban-col">
+        <div class="kanban-col-header">
+            <span class="text-primary">בתהליך עבודה ⚙️</span>
+            <span class="badge bg-primary">{{in_progress|length}}</span>
+        </div>
+        <div class="kanban-tasks" id="col-IN_PROGRESS" data-status="IN_PROGRESS">
+            {% for t in in_progress %}
+            <div class="kanban-card" data-id="{{t.id}}">
+                <div class="fw-bold mb-1">{{t.title}}</div>
+                {% if t.priority == 'HIGH' %}<span class="badge bg-danger mb-2">דחוף</span>{% endif %}
+                <div class="small text-muted">{{t.description|truncate(40) if t.description else ''}}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="kanban-col">
+        <div class="kanban-col-header">
+            <span class="text-success">בוצע ✔️</span>
+            <span class="badge bg-success">{{done|length}}</span>
+        </div>
+        <div class="kanban-tasks" id="col-DONE" data-status="DONE">
+            {% for t in done %}
+            <div class="kanban-card" data-id="{{t.id}}" style="opacity: 0.7;">
+                <div class="fw-bold text-decoration-line-through mb-1">{{t.title}}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<script>
+    const columns = ['col-TODO', 'col-IN_PROGRESS', 'col-DONE'];
+    
+    columns.forEach(colId => {
+        const el = document.getElementById(colId);
+        new Sortable(el, {
+            group: 'kanban', 
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            onEnd: function (evt) {
+                const itemEl = evt.item;  
+                const toEl = evt.to;      
+                
+                const taskId = itemEl.getAttribute('data-id');
+                const newStatus = toEl.getAttribute('data-status');
+                const oldStatus = evt.from.getAttribute('data-status');
+
+                if (newStatus !== oldStatus) {
+                    fetch(`/update_status/${taskId}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status: newStatus })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if(data.success) {
+                            if(newStatus === 'DONE') {
+                                createToast('כל הכבוד! משימה הושלמה 🎉', 'confetti');
+                                if(typeof confetti !== 'undefined') {
+                                    confetti({particleCount: 150, spread: 80, origin: { y: 0.6 }});
+                                }
+                                itemEl.style.opacity = '0.7';
+                                itemEl.querySelector('.fw-bold').classList.add('text-decoration-line-through');
+                            } else {
+                                itemEl.style.opacity = '1';
+                                itemEl.querySelector('.fw-bold').classList.remove('text-decoration-line-through');
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        createToast('שגיאה בעדכון הסטטוס', 'danger');
+                    });
+                }
+            }
+        });
+    });
+</script>
+
+{% endblock %}
