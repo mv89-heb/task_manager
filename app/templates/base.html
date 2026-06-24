@@ -12,151 +12,67 @@
             margin: 0;
             transition: background 0.3s, color 0.3s;
         }
-        
-        /* תפריט צד (Sidebar) למסכים גדולים */
         .sidebar {
-            width: 240px; 
-            height: 100vh; 
-            position: fixed; 
-            right: 0; 
-            top: 0;
-            background: #111827; 
-            color: #fff; 
-            display: flex; 
-            flex-direction: column; 
-            z-index: 1000;
+            width: 240px; height: 100vh; position: fixed; right: 0; top: 0;
+            background: #111827; color: #fff; display: flex; flex-direction: column; z-index: 1000;
         }
         .sidebar-header {
-            padding: 20px; 
-            font-size: 18px; 
-            font-weight: bold; 
-            text-align: center;
-            border-bottom: 1px solid #374151; 
-            margin-bottom: 10px;
+            padding: 20px; font-size: 18px; font-weight: bold; text-align: center;
+            border-bottom: 1px solid #374151; margin-bottom: 10px;
         }
         .sidebar a {
-            padding: 14px 20px; 
-            color: #cbd5e1; 
-            text-decoration: none; 
-            font-size: 15px;
-            transition: 0.2s; 
-            border-right: 4px solid transparent;
+            padding: 14px 20px; color: #cbd5e1; text-decoration: none; font-size: 15px;
+            transition: 0.2s; border-right: 4px solid transparent;
         }
-        .sidebar a:hover { 
-            background: #1f2937; 
-            color: white; 
-        }
-        .sidebar a.active { 
-            background: #1f2937; 
-            color: white; 
-            border-right: 4px solid #3b82f6; 
-            font-weight: 600; 
-        }
+        .sidebar a:hover { background: #1f2937; color: white; }
+        .sidebar a.active { background: #1f2937; color: white; border-right: 4px solid #3b82f6; font-weight: 600; }
         
-        /* אזור התוכן המרכזי */
-        .content { 
-            margin-right: 240px; 
-            padding: 30px; 
-        }
-        .card-modern { 
-            border: 1px solid var(--bs-border-color); 
-            border-radius: 12px; 
-            background: var(--bs-card-bg, #ffffff); 
-            padding: 20px; 
-        }
-        .topbar { 
-            background: var(--bs-tight-bg, white); 
-            border: 1px solid var(--bs-border-color); 
-            border-radius: 12px; 
-            padding: 15px 20px; 
-            margin-bottom: 20px; 
-        }
+        /* אם המשתמש לא מחובר - התוכן יתפרס על כל המסך ללא שוליים של ה-Sidebar */
+        .content { margin-right: {% if current_user.is_authenticated %}240px{% else %}0{% endif %}; padding: 30px; }
+        .card-modern { border: 1px solid var(--bs-border-color); border-radius: 12px; background: var(--bs-card-bg, #ffffff); padding: 20px; }
+        .topbar { background: var(--bs-tight-bg, white); border: 1px solid var(--bs-border-color); border-radius: 12px; padding: 15px 20px; margin-bottom: 20px; }
         
-        /* עיצוב מערכת ההודעות הקופצות (Toasts) */
-        .toast-container-custom { 
-            position: fixed; 
-            bottom: 20px; 
-            left: 20px; 
-            z-index: 9999; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 10px; 
-        }
-        .custom-toast { 
-            min-width: 250px; 
-            padding: 15px 20px; 
-            border-radius: 10px; 
-            color: white; 
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15); 
-            animation: slideIn 0.3s ease-out forwards; 
-            transition: opacity 0.3s ease; 
-        }
-        @keyframes slideIn { 
-            from { transform: translateX(-100%); opacity: 0; } 
-            to { transform: translateX(0); opacity: 1; } 
-        }
+        .toast-container-custom { position: fixed; bottom: 20px; left: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+        .custom-toast { min-width: 250px; padding: 15px 20px; border-radius: 10px; color: white; box-shadow: 0 4px 12px rgba(0,0,0,0.15); animation: slideIn 0.3s ease-out forwards; transition: opacity 0.3s ease; }
+        @keyframes slideIn { from { transform: translateX(-100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         
-        /* עיצוב תפריט תחתון למובייל (Bottom Nav) */
         .bottom-nav {
-            display: none; 
-            position: fixed; 
-            bottom: 0; 
-            width: 100%;
-            background: var(--bs-body-bg); 
-            border-top: 1px solid var(--bs-border-color);
-            z-index: 1000; 
-            justify-content: space-around; 
-            padding: 10px 0;
+            display: none; position: fixed; bottom: 0; width: 100%;
+            background: var(--bs-body-bg); border-top: 1px solid var(--bs-border-color);
+            z-index: 1000; justify-content: space-around; padding: 10px 0;
             box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
         }
         .bottom-nav a {
-            color: var(--bs-secondary-color); 
-            text-decoration: none; 
-            text-align: center;
-            font-size: 12px; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center;
+            color: var(--bs-secondary-color); text-decoration: none; text-align: center;
+            font-size: 12px; display: flex; flex-direction: column; align-items: center;
         }
-        .bottom-nav a.active { 
-            color: #3b82f6; 
-            font-weight: bold; 
-        }
-        .bottom-nav span.icon { 
-            font-size: 20px; 
-            margin-bottom: 2px; 
-        }
+        .bottom-nav a.active { color: #3b82f6; font-weight: bold; }
+        .bottom-nav span.icon { font-size: 20px; margin-bottom: 2px; }
 
-        /* התאמות למסכים קטנים (מובייל) */
         @media (max-width: 768px) {
-            .sidebar { display: none; } 
-            .bottom-nav { display: flex; } 
-            .content { margin-right: 0; padding: 15px; margin-bottom: 70px; } 
+            .sidebar { display: none; }
+            .bottom-nav { display: {% if current_user.is_authenticated %}flex{% else %}none{% endif %}; }
+            .content { margin-right: 0; padding: 15px; margin-bottom: 70px; }
         }
     </style>
 </head>
 <body>
 
+{% if current_user.is_authenticated %}
 <div class="bottom-nav">
     <a href="/" class="{% if request.endpoint == 'tasks.index' %}active{% endif %}">
-        <span class="icon">🏠</span>
-        <span>משימות</span>
+        <span class="icon">🏠</span><span>משימות</span>
     </a>
     <a href="/kanban" class="{% if request.endpoint == 'tasks.kanban' %}active{% endif %}">
-        <span class="icon">📋</span>
-        <span>קאנבן</span>
+        <span class="icon">📋</span><span>קאנבן</span>
     </a>
     <a href="/calendar" class="{% if request.endpoint == 'tasks.calendar' %}active{% endif %}">
-        <span class="icon">📅</span>
-        <span>יומן</span>
+        <span class="icon">📅</span><span>יומן</span>
     </a>
     <a href="/dashboard" class="{% if request.endpoint == 'dashboard.dashboard' %}active{% endif %}">
-        <span class="icon">📈</span>
-        <span>דשבורד</span>
+        <span class="icon">📈</span><span>דשבורד</span>
     </a>
 </div>
-
-<div class="toast-container-custom" id="toastContainer"></div>
 
 <div class="sidebar">
     <div class="sidebar-header">🚀 TaskManager</div>
@@ -164,11 +80,22 @@
     <a href="/kanban" class="{% if request.endpoint == 'tasks.kanban' %}active{% endif %}">📋 לוח קאנבן</a>
     <a href="/calendar" class="{% if request.endpoint == 'tasks.calendar' %}active{% endif %}">📅 לוח שנה חכם</a>
     <a href="/dashboard" class="{% if request.endpoint == 'dashboard.dashboard' %}active{% endif %}">📈 דשבורד מנהלים</a>
+    <hr class="text-secondary mx-3">
+    <a href="/logout" class="text-danger">🚪 יציאה ({ {current_user.username} })</a>
 </div>
+{% endif %}
+
+<div class="toast-container-custom" id="toastContainer"></div>
 
 <div class="content">
     <div class="topbar shadow-sm d-flex justify-content-between align-items-center">
-        <div class="fw-semibold">סביבת עבודה משודרגת</div>
+        <div class="fw-semibold">
+            {% if current_user.is_authenticated %}
+                שלום, {{ current_user.username }} 👋
+            {% else %}
+                מערכת משימות SaaS אקסקלוסיבית
+            {% endif %}
+        </div>
         <button class="btn btn-sm btn-outline-secondary" id="themeToggleBtn" onclick="toggleTheme()">
             🌙 מצב כהה
         </button>
@@ -181,10 +108,8 @@
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
 <script>
-    // מנגנון ניהול מצב כהה (Dark Mode)
     const htmlTag = document.documentElement;
     const themeBtn = document.getElementById('themeToggleBtn');
-
     const savedTheme = localStorage.getItem('theme') || 'light';
     htmlTag.setAttribute('data-bs-theme', savedTheme);
     updateButtonText(savedTheme);
@@ -192,12 +117,9 @@
     function toggleTheme() {
         const currentTheme = htmlTag.getAttribute('data-bs-theme');
         const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-        
         htmlTag.setAttribute('data-bs-theme', newTheme);
         localStorage.setItem('theme', newTheme);
         updateButtonText(newTheme);
-        
-        // יריץ אירוע גלובלי כדי שלוח השנה ידע להתאים את הצבעים שלו אם החלפנו מצב
         window.dispatchEvent(new Event('themeChanged'));
     }
 
@@ -205,23 +127,16 @@
         themeBtn.innerHTML = theme === 'light' ? '🌙 מצב כהה' : '☀️ מצב בהיר';
     }
 
-    // מנגנון הודעות קופצות (Toasts) וקונפטי
     function createToast(message, type) {
         const container = document.getElementById('toastContainer');
         const toast = document.createElement('div');
         toast.className = `custom-toast`;
-        
         if (type === 'danger') toast.style.background = '#ef4444';      
         else if (type === 'confetti') toast.style.background = '#10b981'; 
         else toast.style.background = '#22c55e';                         
-        
         toast.innerText = message;
         container.appendChild(toast);
-
-        setTimeout(() => {
-            toast.style.opacity = '0';
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
+        setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
     }
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -235,6 +150,5 @@
         {% endif %}
     {% endwith %}
 </script>
-
 </body>
 </html>
