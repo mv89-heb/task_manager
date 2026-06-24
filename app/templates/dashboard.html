@@ -1,50 +1,95 @@
 {% extends "base.html" %}
 {% block content %}
 
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card-modern p-4 shadow-sm text-center border-bottom border-primary border-4">
+            <h6 class="text-muted mb-2">סה"כ משימות במערכת</h6>
+            <h2 class="mb-0 fw-bold">{{total}}</h2>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card-modern p-4 shadow-sm text-center border-bottom border-success border-4">
+            <h6 class="text-muted mb-2">משימות שהושלמו</h6>
+            <h2 class="mb-0 fw-bold text-success">{{done}}</h2>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card-modern p-4 shadow-sm text-center border-bottom border-danger border-4">
+            <h6 class="text-muted mb-2">עדיפות גבוהה (פתוחות)</h6>
+            <h2 class="mb-0 fw-bold text-danger">{{high_priority}}</h2>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card-modern p-4 shadow-sm text-center border-bottom border-warning border-4">
+            <h6 class="text-muted mb-2">באיחור ⏳</h6>
+            <h2 class="mb-0 fw-bold text-warning">{{overdue}}</h2>
+        </div>
+    </div>
+</div>
+
 <div class="row g-4">
+    <div class="col-md-6">
+        <div class="card-modern p-4 shadow-sm d-flex flex-column align-items-center">
+            <h6 class="mb-3 w-100">📊 התקדמות כללית</h6>
+            <div style="width: 250px; height: 250px;">
+                <canvas id="statusChart"></canvas>
+            </div>
+        </div>
+    </div>
 
-<div class="col-md-4">
-<div class="card-modern p-4 shadow-sm text-center">
-<h6>סה"כ משימות</h6>
-<h2>{{total}}</h2>
-</div>
-</div>
-
-<div class="col-md-4">
-<div class="card-modern p-4 shadow-sm text-center">
-<h6>הושלמו</h6>
-<h2 class="text-success">{{done}}</h2>
-</div>
-</div>
-
-<div class="col-md-4">
-<div class="card-modern p-4 shadow-sm text-center">
-<h6>פתוחות</h6>
-<h2 class="text-warning">{{total - done}}</h2>
-</div>
-</div>
-
-<div class="col-12">
-<div class="card-modern p-4 shadow-sm">
-<h6 class="mb-3">📊 גרף</h6>
-<canvas id="chart"></canvas>
-</div>
-</div>
-
+    <div class="col-md-6">
+        <div class="card-modern p-4 shadow-sm d-flex flex-column align-items-center">
+            <h6 class="mb-3 w-100">🔥 התפלגות עדיפויות (למשימות פתוחות)</h6>
+            <div style="width: 250px; height: 250px;">
+                <canvas id="priorityChart"></canvas>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-new Chart(document.getElementById("chart"), {
-type: 'doughnut',
-data: {
-labels: ['פתוחות','הושלמו'],
-datasets: [{
-data: [{{total - done}}, {{done}}],
-backgroundColor: ['#f59e0b','#22c55e']
-}]
-}
-});
+    // גרף התקדמות כללית (סטטוסים)
+    new Chart(document.getElementById("statusChart"), {
+        type: 'doughnut',
+        data: {
+            labels: ['פתוחות', 'הושלמו'],
+            datasets: [{
+                data: [{{open_count}}, {{done}}],
+                backgroundColor: ['#e2e8f0', '#22c55e'], // אפור לסיום, ירוק להושלם
+                borderWidth: 0
+            }]
+        },
+        options: {
+            cutout: '75%', // עושה את העיגול דק ואלגנטי
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+
+    // גרף עדיפויות
+    new Chart(document.getElementById("priorityChart"), {
+        type: 'doughnut',
+        data: {
+            labels: ['גבוהה', 'בינונית', 'נמוכה'],
+            datasets: [{
+                data: [{{high_priority}}, {{medium_priority}}, {{low_priority}}],
+                backgroundColor: ['#ef4444', '#f59e0b', '#94a3b8'], // אדום, צהוב, אפור
+                borderWidth: 0
+            }]
+        },
+        options: {
+            cutout: '75%',
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
 </script>
 
 {% endblock %}
