@@ -3,4 +3,4 @@ services:
     name: task-manager
     env: python
     buildCommand: pip install -r requirements.txt
-   startCommand: gunicorn run:app --log-level debug
+    startCommand: gunicorn run:app --log-level debug
