@@ -1,94 +1,124 @@
 {% extends "base.html" %}
 {% block content %}
 
+<div class="card-modern p-3 shadow-sm mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="m-0 fw-bold">התקדמות כללית</h6>
+        <span class="badge bg-primary">{{completion_percent}}%</span>
+    </div>
+    <div class="progress" style="height: 10px;">
+        <div class="progress-bar bg-success" role="progressbar" style="width: {{completion_percent}}%"></div>
+    </div>
+</div>
+
 <div class="row g-4 mb-4">
     <div class="col-md-3">
         <div class="card-modern p-4 shadow-sm text-center border-bottom border-primary border-4">
-            <h6 class="text-muted mb-2">סה"כ משימות במערכת</h6>
+            <h6 class="text-muted mb-2">סה"כ משימות</h6>
             <h2 class="mb-0 fw-bold">{{total}}</h2>
         </div>
     </div>
-
     <div class="col-md-3">
         <div class="card-modern p-4 shadow-sm text-center border-bottom border-success border-4">
-            <h6 class="text-muted mb-2">משימות שהושלמו</h6>
+            <h6 class="text-muted mb-2">הושלמו</h6>
             <h2 class="mb-0 fw-bold text-success">{{done}}</h2>
         </div>
     </div>
-
     <div class="col-md-3">
         <div class="card-modern p-4 shadow-sm text-center border-bottom border-danger border-4">
-            <h6 class="text-muted mb-2">עדיפות גבוהה (פתוחות)</h6>
+            <h6 class="text-muted mb-2">עדיפות גבוהה (פתוח)</h6>
             <h2 class="mb-0 fw-bold text-danger">{{high_priority}}</h2>
         </div>
     </div>
-
     <div class="col-md-3">
         <div class="card-modern p-4 shadow-sm text-center border-bottom border-warning border-4">
             <h6 class="text-muted mb-2">באיחור ⏳</h6>
-            <h2 class="mb-0 fw-bold text-warning">{{overdue}}</h2>
+            <h2 class="mb-0 fw-bold text-warning">{{overdue_count}}</h2>
         </div>
     </div>
 </div>
 
 <div class="row g-4">
-    <div class="col-md-6">
-        <div class="card-modern p-4 shadow-sm d-flex flex-column align-items-center">
-            <h6 class="mb-3 w-100">📊 התקדמות כללית</h6>
-            <div style="width: 250px; height: 250px;">
+    <div class="col-md-5">
+        <div class="card-modern p-4 shadow-sm mb-4 d-flex flex-column align-items-center">
+            <h6 class="mb-3 w-100 border-bottom pb-2">📊 התקדמות משימות</h6>
+            <div style="width: 200px; height: 200px;">
                 <canvas id="statusChart"></canvas>
+            </div>
+        </div>
+        <div class="card-modern p-4 shadow-sm d-flex flex-column align-items-center">
+            <h6 class="mb-3 w-100 border-bottom pb-2">🔥 התפלגות עדיפויות</h6>
+            <div style="width: 200px; height: 200px;">
+                <canvas id="priorityChart"></canvas>
             </div>
         </div>
     </div>
 
-    <div class="col-md-6">
-        <div class="card-modern p-4 shadow-sm d-flex flex-column align-items-center">
-            <h6 class="mb-3 w-100">🔥 התפלגות עדיפויות (למשימות פתוחות)</h6>
-            <div style="width: 250px; height: 250px;">
-                <canvas id="priorityChart"></canvas>
+    <div class="col-md-7">
+        
+        <div class="card-modern shadow-sm mb-4">
+            <div class="p-3 border-bottom bg-light rounded-top d-flex justify-content-between align-items-center">
+                <h6 class="m-0 fw-bold">📅 משימות להיום</h6>
+                <span class="badge bg-info text-dark">{{today_tasks|length}}</span>
             </div>
+            <ul class="list-group list-group-flush">
+                {% for t in today_tasks %}
+                <li class="list-group-item d-flex justify-content-between align-items-center p-3">
+                    <div>
+                        <div class="fw-bold">{{t.title}}</div>
+                        <div class="small text-muted">{{t.description|truncate(40) if t.description else 'ללא תיאור'}}</div>
+                    </div>
+                    <a href="/done/{{t.id}}" class="btn btn-sm btn-outline-success">סמן כבוצע</a>
+                </li>
+                {% else %}
+                <li class="list-group-item text-center text-muted p-4">אין משימות שמועד הסיום שלהן הוא היום.</li>
+                {% endfor %}
+            </ul>
         </div>
+
+        <div class="card-modern shadow-sm">
+            <div class="p-3 border-bottom bg-light rounded-top d-flex justify-content-between align-items-center">
+                <h6 class="m-0 fw-bold text-danger">🚨 לטיפול דחוף (איחורים / עדיפות גבוהה)</h6>
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for t in urgent_list %}
+                <li class="list-group-item d-flex justify-content-between align-items-center p-3">
+                    <div>
+                        <div class="fw-bold">{{t.title}}</div>
+                        <div class="small text-danger">
+                            {% if t.priority == "HIGH" %} עדיפות גבוהה | {% endif %}
+                            {% if t.due_date %} יעד: {{t.due_date.strftime('%d/%m/%Y')}} {% endif %}
+                        </div>
+                    </div>
+                    <a href="/edit/{{t.id}}" class="btn btn-sm btn-light border">צפה</a>
+                </li>
+                {% else %}
+                <li class="list-group-item text-center text-muted p-4">איזה יופי! אין משימות דחופות או באיחור.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    // גרף התקדמות כללית (סטטוסים)
     new Chart(document.getElementById("statusChart"), {
         type: 'doughnut',
         data: {
             labels: ['פתוחות', 'הושלמו'],
-            datasets: [{
-                data: [{{open_count}}, {{done}}],
-                backgroundColor: ['#e2e8f0', '#22c55e'], // אפור לסיום, ירוק להושלם
-                borderWidth: 0
-            }]
+            datasets: [{ data: [{{open_count}}, {{done}}], backgroundColor: ['#e2e8f0', '#22c55e'], borderWidth: 0 }]
         },
-        options: {
-            cutout: '75%', // עושה את העיגול דק ואלגנטי
-            plugins: {
-                legend: { position: 'bottom' }
-            }
-        }
+        options: { cutout: '75%', plugins: { legend: { position: 'bottom' } } }
     });
 
-    // גרף עדיפויות
     new Chart(document.getElementById("priorityChart"), {
         type: 'doughnut',
         data: {
             labels: ['גבוהה', 'בינונית', 'נמוכה'],
-            datasets: [{
-                data: [{{high_priority}}, {{medium_priority}}, {{low_priority}}],
-                backgroundColor: ['#ef4444', '#f59e0b', '#94a3b8'], // אדום, צהוב, אפור
-                borderWidth: 0
-            }]
+            datasets: [{ data: [{{high_priority}}, {{medium_priority}}, {{low_priority}}], backgroundColor: ['#ef4444', '#f59e0b', '#94a3b8'], borderWidth: 0 }]
         },
-        options: {
-            cutout: '75%',
-            plugins: {
-                legend: { position: 'bottom' }
-            }
-        }
+        options: { cutout: '75%', plugins: { legend: { position: 'bottom' } } }
     });
 </script>
 
