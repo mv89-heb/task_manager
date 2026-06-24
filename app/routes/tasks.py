@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from app.models.task import Task
 from app import db
 from datetime import datetime
@@ -27,8 +27,8 @@ def index():
     status_filter = request.args.get("status", "")
     priority_filter = request.args.get("priority", "")
     page = request.args.get("page", 1, type=int)
-    sort_by = request.args.get("sort", "created_at") # ברירת מחדל: תאריך יצירה
-    order = request.args.get("order", "desc")        # ברירת מחדל: מהחדש לישן
+    sort_by = request.args.get("sort", "created_at")
+    order = request.args.get("order", "desc")
 
     query = Task.query
 
@@ -39,7 +39,7 @@ def index():
     if priority_filter:
         query = query.filter(Task.priority == priority_filter)
 
-    # מיון לפי מה שהמשתמש לחץ עליו בטבלה
+    # מיון
     if sort_by == "due_date":
         query = query.order_by(Task.due_date.asc() if order == "asc" else Task.due_date.desc())
     elif sort_by == "priority":
@@ -47,7 +47,7 @@ def index():
     else:
         query = query.order_by(Task.created_at.asc() if order == "asc" else Task.created_at.desc())
 
-    # חלוקה לעמודים - 5 משימות בלבד בכל עמוד
+    # חלוקה לעמודים
     pagination = db.paginate(query, page=page, per_page=5, error_out=False)
     tasks = pagination.items
 
@@ -86,3 +86,28 @@ def edit(id):
         flash("השינויים נשמרו.", "success")
         return redirect("/")
     return render_template("edit_task.html", task=task)
+
+# --- תצוגת קאנבן ---
+@bp.route("/kanban")
+def kanban():
+    tasks = Task.query.all()
+    todo = [t for t in tasks if t.status == "TODO" or not t.status]
+    in_progress = [t for t in tasks if t.status == "IN_PROGRESS"]
+    done = [t for t in tasks if t.status == "DONE"]
+    
+    return render_template("kanban.html", todo=todo, in_progress=in_progress, done=done)
+
+# --- עדכון סטטוס שקט בעקבות גרירה בקאנבן (AJAX) ---
+@bp.route("/update_status/<int:id>", methods=["POST"])
+def update_status(id):
+    task = Task.query.get(id)
+    if task:
+        data = request.get_json()
+        new_status = data.get("status")
+        
+        if new_status in ["TODO", "IN_PROGRESS", "DONE"]:
+            task.status = new_status
+            db.session.commit()
+            return jsonify({"success": True})
+            
+    return jsonify({"success": False}), 400
