@@ -2,33 +2,38 @@
 {% block content %}
 
 <div class="row justify-content-center">
-
 <div class="col-md-6">
 
 <div class="card-modern p-4 shadow-sm">
 
-<h5 class="mb-3">✏ עריכת משימה</h5>
+<h5 class="mb-4">✏ עריכת משימה</h5>
 
 <form method="POST">
 
+<label class="form-label small text-muted">שם המשימה:</label>
 <input name="title" class="form-control mb-3" value="{{task.title}}" required>
 
-<select name="priority" class="form-select mb-3">
+<label class="form-label small text-muted">פירוט המשימה:</label>
+<textarea name="description" class="form-control mb-3" rows="4">{{task.description or ''}}</textarea>
 
+<label class="form-label small text-muted">תאריך יעד:</label>
+<input type="date" name="due_date" class="form-control mb-3" value="{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '' }}">
+
+<label class="form-label small text-muted">עדיפות:</label>
+<select name="priority" class="form-select mb-4">
 <option value="LOW" {% if task.priority=="LOW" %}selected{% endif %}>נמוכה</option>
 <option value="MEDIUM" {% if task.priority=="MEDIUM" %}selected{% endif %}>בינונית</option>
 <option value="HIGH" {% if task.priority=="HIGH" %}selected{% endif %}>גבוהה</option>
-
 </select>
 
-<button class="btn btn-dark w-100">שמור</button>
+<button class="btn btn-dark w-100">שמור שינויים</button>
+<a href="/" class="btn btn-link w-100 mt-2 text-muted">ביטול וחזרה</a>
 
 </form>
 
 </div>
 
 </div>
-
 </div>
 
 {% endblock %}
