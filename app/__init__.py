@@ -4,23 +4,16 @@ from flask_login import LoginManager
 from config import Config
 
 db = SQLAlchemy()
-
-# יצירת מנהל ההתחברויות
 login_manager = LoginManager()
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # אתחול הכלים עם האפליקציה
     db.init_app(app)
     login_manager.init_app(app)
-    
-    # הגדרת הדף שאליו משתמשים יופנו אם הם לא מחוברים (אופציונלי אבל מומלץ)
-    # login_manager.login_view = 'login' 
 
     with app.app_context():
-        # עכשיו ה-User יכול לייבא את login_manager בבטחה
         from app.models.user import User
         from app.models.task import Task
 
@@ -30,11 +23,13 @@ def create_app():
         app.register_blueprint(task_bp)
         app.register_blueprint(dash_bp)
 
+        # ⚠️ מחיקת הטבלאות הישנות ויצירתן מחדש עם השדות החדשים
+        # אחרי שהאפליקציה מתעדכנת ועולה בהצלחה ב-Render, חובה למחוק את השורה של db.drop_all()
+        db.drop_all() 
         db.create_all()
 
     return app
 
-# פונקציה ש-Flask-Login חייב כדי לטעון את המשתמש הנוכחי מהמסד
 @login_manager.user_loader
 def load_user(user_id):
     from app.models.user import User
