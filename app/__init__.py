@@ -24,7 +24,7 @@ def create_app():
         app.register_blueprint(dash_bp)
 
         # ⚠️ מרעננים את מסד הנתונים כדי לוודא ששדה ה-status קיים בטבלה האמיתית ב-PostgreSQL
-        db.drop_all() 
+        
         db.create_all()
 
     return app
