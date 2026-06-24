@@ -4,8 +4,13 @@ from app.models.task import Task
 from app.models.user import User
 from app import db
 from datetime import datetime
+from sqlalchemy import text
 
 bp = Blueprint("tasks", __name__)
+
+# =========================================================
+# 🔒 מערכת ניהול משתמשים (Authentication)
+# =========================================================
 
 # --- עמוד התחברות ---
 @bp.route("/login", methods=["GET", "POST"])
@@ -60,7 +65,12 @@ def logout():
     flash("התנתקת מהמערכת בהצלחה.", "success")
     return redirect(url_for("tasks.login"))
 
-# --- עמוד הבית (רשימת משימות) ---
+
+# =========================================================
+# 📋 ניהול משימות (Core Task Management)
+# =========================================================
+
+# --- עמוד הבית (רשימת משימות + סינון + מיון + עימוד) ---
 @bp.route("/", methods=["GET", "POST"])
 @login_required
 def index():
@@ -73,13 +83,14 @@ def index():
             description=request.form.get("description", ""),
             due_date=due_date,
             priority=request.form.get("priority", "LOW"),
-            user_id=current_user.id # משייכים את המשימה למשתמש המחובר
+            user_id=current_user.id  # שיוך המשימה למשתמש המחובר
         )
         db.session.add(task)
         db.session.commit()
         flash("המשימה נוצרה בהצלחה!", "success")
         return redirect(url_for("tasks.index"))
 
+    # קליטת פרמטרים מכתובת ה-URL עבור חיפושים וסינונים
     search_query = request.args.get("search", "")
     status_filter = request.args.get("status", "")
     priority_filter = request.args.get("priority", "")
@@ -87,9 +98,10 @@ def index():
     sort_by = request.args.get("sort", "created_at")
     order = request.args.get("order", "desc")
 
-    # מושכים משימות רק של המשתמש הנוכחי
+    # שליפת משימות השייכות אך ורק למשתמש המחובר
     query = Task.query.filter_by(user_id=current_user.id)
 
+    # החלת סינונים במידה ונבחרו
     if search_query:
         query = query.filter((Task.title.contains(search_query)) | (Task.description.contains(search_query)))
     if status_filter:
@@ -97,6 +109,7 @@ def index():
     if priority_filter:
         query = query.filter(Task.priority == priority_filter)
 
+    # לוגיקת מיון דינמי
     if sort_by == "due_date":
         query = query.order_by(Task.due_date.asc() if order == "asc" else Task.due_date.desc())
     elif sort_by == "priority":
@@ -104,20 +117,24 @@ def index():
     else:
         query = query.order_by(Task.created_at.asc() if order == "asc" else Task.created_at.desc())
 
+    # חלוקה לעמודים (Pagination) - 5 משימות לעמוד
     pagination = db.paginate(query, page=page, per_page=5, error_out=False)
     tasks = pagination.items
 
     return render_template("tasks.html", tasks=tasks, pagination=pagination, sort_by=sort_by, order=order)
 
+# --- סימון משימה כבוצע ---
 @bp.route("/done/<int:id>")
 @login_required
 def done(id):
+    # מוודאים שהמשימה קיימת ושייכת למשתמש הנוכחי
     task = Task.query.filter_by(id=id, user_id=current_user.id).first_or_404()
     task.status = "DONE"
     db.session.commit()
     flash("כל הכבוד! המשימה בוצעה 🎉", "confetti")
     return redirect(url_for("tasks.index"))
 
+# --- מחיקת משימה ---
 @bp.route("/delete/<int:id>")
 @login_required
 def delete(id):
@@ -127,10 +144,12 @@ def delete(id):
     flash("המשימה נמחקה בהצלחה.", "danger")
     return redirect(url_for("tasks.index"))
 
+# --- עריכת משימה קיימת ---
 @bp.route("/edit/<int:id>", methods=["GET", "POST"])
 @login_required
 def edit(id):
     task = Task.query.filter_by(id=id, user_id=current_user.id).first_or_404()
+    
     if request.method == "POST":
         due_date_str = request.form.get("due_date")
         task.due_date = datetime.strptime(due_date_str, "%Y-%m-%d").date() if due_date_str else None
@@ -142,19 +161,28 @@ def edit(id):
         db.session.commit()
         flash("השינויים נשמרו.", "success")
         return redirect(url_for("tasks.index"))
+        
     return render_template("edit_task.html", task=task)
 
-# --- תצוגת קאנבן מאובטחת ---
+
+# =========================================================
+# 🚀 תצוגות מתקדמות (Kanban & Calendar)
+# =========================================================
+
+# --- תצוגת לוח קאנבן ---
 @bp.route("/kanban")
 @login_required
 def kanban():
     tasks = Task.query.filter_by(user_id=current_user.id).all()
+    
+    # מיון המשימות הפרטיות ל-3 עמודות הלוח
     todo = [t for t in tasks if t.status == "TODO" or not t.status]
     in_progress = [t for t in tasks if t.status == "IN_PROGRESS"]
     done = [t for t in tasks if t.status == "DONE"]
+    
     return render_template("kanban.html", todo=todo, in_progress=in_progress, done=done)
 
-# --- עדכון סטטוס גרירה מאובטח ---
+# --- עדכון סטטוס שקט בעקבות גרירה בקאנבן (AJAX API) ---
 @bp.route("/update_status/<int:id>", methods=["POST"])
 @login_required
 def update_status(id):
@@ -162,26 +190,39 @@ def update_status(id):
     if task:
         data = request.get_json()
         new_status = data.get("status")
+        
         if new_status in ["TODO", "IN_PROGRESS", "DONE"]:
             task.status = new_status
             db.session.commit()
             return jsonify({"success": True})
+            
     return jsonify({"success": False}), 400
 
-# --- תצוגת לוח שנה מאובטחת ---
+# --- תצוגת לוח שנה ---
 @bp.route("/calendar")
 @login_required
 def calendar():
     return render_template("calendar.html")
 
-# --- API לוח שנה מאובטח ---
+# --- נקודת קצה (API) שמזינה את המשימות ללוח השנה בפורמט JSON ---
 @bp.route("/api/calendar_tasks")
 @login_required
 def calendar_tasks():
+    # שולפים רק משימות בעלות תאריך יעד ששייכות למשתמש הנוכחי
     tasks = Task.query.filter_by(user_id=current_user.id).filter(Task.due_date.isnot(None)).all()
     events = []
+    
     for t in tasks:
-        color = "#22c55e" if t.status == "DONE" else ("#ef4444" if t.priority == "HIGH" else ("#f59e0b" if t.priority == "MEDIUM" else "#3b82f6"))
+        # התאמת צבעים לפי סטטוס ועדיפות
+        if t.status == "DONE":
+            color = "#22c55e" # ירוק
+        elif t.priority == "HIGH":
+            color = "#ef4444" # אדום
+        elif t.priority == "MEDIUM":
+            color = "#f59e0b" # צהוב
+        else:
+            color = "#3b82f6" # כחול
+
         events.append({
             "id": t.id,
             "title": t.title,
@@ -190,4 +231,21 @@ def calendar_tasks():
             "borderColor": color,
             "url": f"/edit/{t.id}"
         })
+        
     return jsonify(events)
+
+
+# =========================================================
+# 🛠️ כלי תחזוקה וסנכרון (Database Fix Patch)
+# =========================================================
+
+# --- ראוט סודי להזרקת עמודת המשתמש למסד הנתונים הקיים ללא מחיקה ---
+@bp.route("/fix-db")
+def fix_db():
+    try:
+        # פקודה ידנית שמוסיפה את העמודה user_id לטבלה הקיימת ב-PostgreSQL
+        db.session.execute(text('ALTER TABLE task ADD COLUMN user_id INTEGER;'))
+        db.session.commit()
+        return "✅ מסד הנתונים תוקן בהצלחה! העמודה user_id נוספה לטבלת המשימות שלך. ניתן לחזור לאתר."
+    except Exception as e:
+        return f"נראה שהעמודה כבר קיימת שם, או שיש שגיאה אחרת: {e}"
