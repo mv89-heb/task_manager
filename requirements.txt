@@ -1,5 +1,6 @@
 Flask
 Flask-SQLAlchemy
+Flask-Login
 bcrypt
 gunicorn
 psycopg2-binary
