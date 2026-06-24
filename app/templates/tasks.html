@@ -10,12 +10,17 @@
 
 <form method="POST">
 
-<input name="title" class="form-control mb-3" placeholder="שם המשימה" required>
+<input name="title" class="form-control mb-3" placeholder="שם המשימה (חובה)" required>
+
+<textarea name="description" class="form-control mb-3" rows="3" placeholder="פירוט המשימה..."></textarea>
+
+<label class="form-label small text-muted">תאריך יעד:</label>
+<input type="date" name="due_date" class="form-control mb-3">
 
 <select name="priority" class="form-select mb-3">
-<option value="LOW">נמוכה</option>
-<option value="MEDIUM">בינונית</option>
-<option value="HIGH">גבוהה</option>
+<option value="LOW">עדיפות נמוכה</option>
+<option value="MEDIUM">עדיפות בינונית</option>
+<option value="HIGH">עדיפות גבוהה</option>
 </select>
 
 <button class="btn btn-dark w-100">צור משימה</button>
@@ -38,9 +43,9 @@
 
 <thead class="table-light">
 <tr>
-<th>משימה</th>
+<th>פרטי המשימה</th>
+<th>יעד</th>
 <th>סטטוס</th>
-<th>עדיפות</th>
 <th class="text-end">פעולות</th>
 </tr>
 </thead>
@@ -50,45 +55,47 @@
 {% for t in tasks %}
 <tr>
 
-<td>{{t.title}}</td>
-
 <td>
-{% if t.status == "DONE" %}
-<span class="badge bg-success">בוצע</span>
-{% else %}
-<span class="badge bg-warning text-dark">פתוח</span>
-{% endif %}
+    <div class="fw-bold">{{t.title}}</div>
+    {% if t.description %}
+    <div class="text-muted small" style="max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+        {{t.description}}
+    </div>
+    {% endif %}
 </td>
 
 <td>
-{% if t.priority == "HIGH" %}
-<span class="text-danger">גבוהה</span>
-{% elif t.priority == "MEDIUM" %}
-<span class="text-warning">בינונית</span>
-{% else %}
-<span class="text-secondary">נמוכה</span>
-{% endif %}
+    {% if t.due_date %}
+        <span class="badge bg-light text-dark border">{{t.due_date.strftime('%d/%m/%Y')}}</span>
+    {% else %}
+        <span class="text-muted small">-</span>
+    {% endif %}
+</td>
+
+<td>
+    {% if t.status == "DONE" %}
+    <span class="badge bg-success">בוצע</span>
+    {% else %}
+        {% if t.priority == "HIGH" %}
+        <span class="badge bg-danger">דחוף</span>
+        {% elif t.priority == "MEDIUM" %}
+        <span class="badge bg-warning text-dark">בינוני</span>
+        {% else %}
+        <span class="badge bg-secondary">רגיל</span>
+        {% endif %}
+    {% endif %}
 </td>
 
 <td class="text-end">
-
-<a href="/done/{{t.id}}" class="btn btn-sm btn-success">✔</a>
-
-<a href="/edit/{{t.id}}" class="btn btn-sm btn-primary">✏</a>
-
-<a href="/delete/{{t.id}}" 
-   class="btn btn-sm btn-danger"
-   onclick="return confirm('למחוק את המשימה?')">
-   🗑
-</a>
-
+<a href="/done/{{t.id}}" class="btn btn-sm btn-outline-success">✔</a>
+<a href="/edit/{{t.id}}" class="btn btn-sm btn-outline-primary">✏</a>
+<a href="/delete/{{t.id}}" class="btn btn-sm btn-outline-danger" onclick="return confirm('למחוק את המשימה?')">🗑</a>
 </td>
 
 </tr>
 {% endfor %}
 
 </tbody>
-
 </table>
 
 </div>
