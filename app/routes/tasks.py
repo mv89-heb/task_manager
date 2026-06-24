@@ -22,7 +22,6 @@ def index():
         flash("המשימה נוצרה בהצלחה!", "success")
         return redirect("/")
 
-    # חילוץ פרמטרים לסינון, עימוד ומיון
     search_query = request.args.get("search", "")
     status_filter = request.args.get("status", "")
     priority_filter = request.args.get("priority", "")
@@ -39,7 +38,6 @@ def index():
     if priority_filter:
         query = query.filter(Task.priority == priority_filter)
 
-    # מיון
     if sort_by == "due_date":
         query = query.order_by(Task.due_date.asc() if order == "asc" else Task.due_date.desc())
     elif sort_by == "priority":
@@ -47,7 +45,6 @@ def index():
     else:
         query = query.order_by(Task.created_at.asc() if order == "asc" else Task.created_at.desc())
 
-    # חלוקה לעמודים
     pagination = db.paginate(query, page=page, per_page=5, error_out=False)
     tasks = pagination.items
 
@@ -91,6 +88,7 @@ def edit(id):
 @bp.route("/kanban")
 def kanban():
     tasks = Task.query.all()
+    # חלוקה מראש ל-3 עמודות על בסיס שדה ה-status
     todo = [t for t in tasks if t.status == "TODO" or not t.status]
     in_progress = [t for t in tasks if t.status == "IN_PROGRESS"]
     done = [t for t in tasks if t.status == "DONE"]
@@ -112,36 +110,32 @@ def update_status(id):
             
     return jsonify({"success": False}), 400
 
-# --- חדש: תצוגת לוח שנה ---
+# --- תצוגת לוח שנה ---
 @bp.route("/calendar")
 def calendar():
     return render_template("calendar.html")
 
-# --- חדש: API שמחזיר משימות בפורמט מותאם ליומן גוגל/FullCalendar ---
+# --- API עבור לוח השנה ---
 @bp.route("/api/calendar_tasks")
 def calendar_tasks():
-    # מושכים רק משימות שיש להן תאריך יעד
     tasks = Task.query.filter(Task.due_date.isnot(None)).all()
     events = []
-    
     for t in tasks:
-        # קביעת צבע דינמי למשימה בלוח השנה
         if t.status == "DONE":
-            color = "#22c55e" # ירוק למשימה שהושלמה
+            color = "#22c55e"
         elif t.priority == "HIGH":
-            color = "#ef4444" # אדום למשימה דחופה
+            color = "#ef4444"
         elif t.priority == "MEDIUM":
-            color = "#f59e0b" # צהוב/כתום לבינונית
+            color = "#f59e0b"
         else:
-            color = "#3b82f6" # כחול לרגילה/נמוכה
+            color = "#3b82f6"
 
         events.append({
             "id": t.id,
             "title": t.title,
-            "start": t.due_date.isoformat(), # המרה לטקסט בתבנית YYYY-MM-DD
+            "start": t.due_date.isoformat(),
             "backgroundColor": color,
             "borderColor": color,
-            "url": f"/edit/{t.id}" # בלחיצה המשתמש יועבר ישר לעריכת המשימה
+            "url": f"/edit/{t.id}"
         })
-        
     return jsonify(events)
