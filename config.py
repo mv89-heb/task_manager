@@ -1,15 +1,11 @@
 import os
 
-class Config:
-    SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key")
+# מחפש את הכתובת של מסד הנתונים בענן
+database_url = os.environ.get('DATABASE_URL')
 
-    DATABASE_URL = os.getenv("DATABASE_URL")
+# תיקון קטן שחובה לעשות ב-Render עבור SQLAlchemy
+if database_url and database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
 
-    if DATABASE_URL:
-        # ✅ FIX FOR RENDER
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://")
-        SQLALCHEMY_DATABASE_URI = DATABASE_URL
-    else:
-        SQLALCHEMY_DATABASE_URI = "sqlite:///db.sqlite3"
-
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
+# אם יש כתובת ענן - השתמש בה. אם לא - השתמש ב-SQLite המקומי
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///db.sqlite3'
