@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="m-0 fw-bold text-warning">👑 פאנל ניהול מנהל מערכת</h4>
+</div>
+
+<div class="card-modern shadow-sm">
+    <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
+        <h6 class="m-0 fw-bold">ניהול משתמשים במערכת</h6>
+        <span class="badge bg-primary">{{ user_stats|length }} משתמשים רשומים</span>
+    </div>
+
+    <table class="table align-middle mb-0 table-hover">
+        <thead class="table-light">
+            <tr>
+                <th>מזהה (ID)</th>
+                <th>שם משתמש</th>
+                <th>כתובת אימייל</th>
+                <th>כמות משימות במערכת</th>
+                <th class="text-end">פעולות ניהול</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for stats in user_stats %}
+            <tr>
+                <td><span class="badge bg-secondary">#{{ stats.user.id }}</span></td>
+                <td class="fw-bold">
+                    {{ stats.user.username }}
+                    {% if stats.user.username == 'mv' %}
+                        <span class="badge bg-warning text-dark ms-2">מנהל (Admin)</span>
+                    {% endif %}
+                </td>
+                <td class="text-muted">{{ stats.user.email }}</td>
+                <td><span class="badge bg-info text-dark">{{ stats.task_count }} משימות</span></td>
+                <td class="text-end">
+                    {% if stats.user.username != 'mv' %}
+                        <a href="/admin/delete_user/{{ stats.user.id }}" 
+                           class="btn btn-sm btn-danger" 
+                           onclick="return confirm('אזהרה חמורה: האם אתה בטוח שברצונך למחוק את המשתמש {{ stats.user.username }} ואת כל המשימות שלו? פעולה זו אינה הפיכה!')">
+                           🗑️ מחק משתמש
+                        </a>
+                    {% else %}
+                        <span class="text-muted small">מוגן מפני מחיקה</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            
+            {% if not user_stats %}
+            <tr>
+                <td colspan="5" class="text-center p-4 text-muted">אין משתמשים להצגה.</td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}
