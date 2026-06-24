@@ -5,10 +5,10 @@ from datetime import datetime
 
 bp = Blueprint("tasks", __name__)
 
+# LIST + CREATE + SEARCH
 @bp.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
-        # קליטת התאריך (אם הושאר ריק, נשמור כ-None)
         due_date_str = request.form.get("due_date")
         due_date = datetime.strptime(due_date_str, "%Y-%m-%d").date() if due_date_str else None
 
@@ -22,10 +22,35 @@ def index():
         db.session.commit()
         return redirect("/")
 
-    # נציג את המשימות (אפשר למיין אותן לפי תאריך יצירה)
-    tasks = Task.query.order_by(Task.created_at.desc()).all()
+    # --- מנגנון החיפוש והסינון ---
+    search_query = request.args.get("search", "")
+    status_filter = request.args.get("status", "")
+    priority_filter = request.args.get("priority", "")
+
+    # מתחילים עם שאילתה בסיסית שמושכת הכל
+    query = Task.query
+
+    # סינון לפי טקסט חופשי (חיפוש בכותרת או בתיאור)
+    if search_query:
+        query = query.filter(
+            (Task.title.contains(search_query)) | 
+            (Task.description.contains(search_query))
+        )
+    
+    # סינון לפי סטטוס
+    if status_filter:
+        query = query.filter(Task.status == status_filter)
+        
+    # סינון לפי עדיפות
+    if priority_filter:
+        query = query.filter(Task.priority == priority_filter)
+
+    # משיכת התוצאות מהמסד, מסודרות מהחדש לישן
+    tasks = query.order_by(Task.created_at.desc()).all()
+
     return render_template("tasks.html", tasks=tasks)
 
+# MARK DONE
 @bp.route("/done/<int:id>")
 def done(id):
     task = Task.query.get(id)
@@ -34,6 +59,7 @@ def done(id):
         db.session.commit()
     return redirect("/")
 
+# DELETE
 @bp.route("/delete/<int:id>")
 def delete(id):
     task = Task.query.get(id)
@@ -42,6 +68,7 @@ def delete(id):
         db.session.commit()
     return redirect("/")
 
+# EDIT PAGE
 @bp.route("/edit/<int:id>", methods=["GET", "POST"])
 def edit(id):
     task = Task.query.get(id)
