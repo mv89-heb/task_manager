@@ -1,11 +1,13 @@
-import os
+from flask import Blueprint, render_template
+from app.models.task import Task
 
-# מחפש את הכתובת של מסד הנתונים בענן
-database_url = os.environ.get('DATABASE_URL')
+bp = Blueprint("dashboard", __name__)
 
-# תיקון קטן שחובה לעשות ב-Render עבור SQLAlchemy
-if database_url and database_url.startswith("postgres://"):
-    database_url = database_url.replace("postgres://", "postgresql://", 1)
-
-# אם יש כתובת ענן - השתמש בה. אם לא - השתמש ב-SQLite המקומי
-app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///db.sqlite3'
+@bp.route("/dashboard")
+def dashboard():
+    tasks = Task.query.all()
+    return render_template(
+        "dashboard.html",
+        total=len(tasks),
+        done=len([t for t in tasks if t.status=="DONE"])
+    )
