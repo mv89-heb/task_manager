@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+    .fc {
+        --fc-border-color: var(--bs-border-color);
+        --fc-daygrid-dot-event-dot-color: #3b82f6;
+        font-family: inherit;
+    }
+    .fc .fc-toolbar-title {
+        font-size: 1.3rem;
+        font-weight: bold;
+    }
+    .fc .fc-button-primary {
+        background-color: var(--bs-secondary-bg);
+        border-color: var(--bs-border-color);
+        color: var(--bs-body-color);
+        font-size: 0.9rem;
+        text-transform: capitalize;
+    }
+    .fc .fc-button-primary:hover {
+        background-color: var(--bs-tertiary-bg);
+        border-color: var(--bs-border-color);
+        color: var(--bs-body-color);
+    }
+    .fc .fc-button-primary:disabled {
+        background-color: var(--bs-secondary-bg);
+        opacity: 0.5;
+    }
+    .fc .fc-button-active {
+        background-color: #3b82f6 !important;
+        color: white !important;
+        border-color: #3b82f6 !important;
+    }
+    .fc-event {
+        cursor: pointer;
+        padding: 2px 5px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="m-0 fw-bold">📅 לוח שנה חכם</h4>
+</div>
+
+<div class="card-modern shadow-sm p-4">
+    <div id="calendar"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const calendarEl = document.getElementById('calendar');
+        
+        const calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth', 
+            direction: 'rtl',           
+            locale: 'he',               
+            headerToolbar: {
+                right: 'title',         
+                center: '',
+                left: 'prev,next today dayGridMonth,timeGridWeek' 
+            },
+            events: '/api/calendar_tasks', 
+            
+            eventClick: function(info) {
+                info.jsEvent.preventDefault();
+                if (info.event.url) {
+                    window.location.href = info.event.url;
+                }
+            }
+        });
+
+        calendar.render();
+
+        window.addEventListener('themeChanged', function() {
+            calendar.updateSize();
+        });
+    });
+</script>
+
+{% endblock %}
