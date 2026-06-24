@@ -23,9 +23,8 @@ def create_app():
         app.register_blueprint(task_bp)
         app.register_blueprint(dash_bp)
 
-        # ⚠️ מחיקת הטבלאות הישנות ויצירתן מחדש עם השדות החדשים
-        # אחרי שהאפליקציה מתעדכנת ועולה בהצלחה ב-Render, חובה למחוק את השורה של db.drop_all()
-        
+        # ⚠️ מרעננים את מסד הנתונים כדי לוודא ששדה ה-status קיים בטבלה האמיתית ב-PostgreSQL
+        db.drop_all() 
         db.create_all()
 
     return app
