@@ -13,200 +13,193 @@ bp = Blueprint("tasks", __name__)
 # 🔒 מערכת ניהול משתמשים (Authentication)
 # =========================================================
 
-# --- עמוד התחברות ---
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for("tasks.index"))
-        
     if request.method == "POST":
         email = request.form.get("email")
         password = request.form.get("password")
         user = User.query.filter_by(email=email).first()
-        
         if user and user.check_password(password):
-            login_user(user, remember=True) # זוכר את המשתמש מחובר
+            login_user(user, remember=True)
             flash(f"ברוך הבא, {user.username}!", "success")
             return redirect(url_for("tasks.index"))
         else:
             flash("אימייל או סיסמה לא נכונים.", "danger")
-            
     return render_template("login.html")
 
-# --- עמוד הרשמה ---
 @bp.route("/register", methods=["GET", "POST"])
 def register():
     if current_user.is_authenticated:
         return redirect(url_for("tasks.index"))
-        
     if request.method == "POST":
         username = request.form.get("username").strip()
         email = request.form.get("email").strip()
         password = request.form.get("password")
-        
         if User.query.filter_by(email=email).first() or User.query.filter_by(username=username).first():
-            flash("שם המשתמש או כתובת האימייל כבר קיימים במערכת.", "danger")
+            flash("שם המשתמש או האימייל כבר קיימים.", "danger")
             return redirect(url_for("tasks.register"))
-            
         try:
             user = User(username=username, email=email)
             user.set_password(password)
-            
             db.session.add(user)
             db.session.commit()
-            
-            # התחברות אוטומטית מיד לאחר ההרשמה
             login_user(user, remember=True)
-            
-            flash("החשבון שלך נוצר בהצלחה וברוך הבא לאפליקציה! 🎉", "success")
+            flash("החשבון נוצר בהצלחה! 🎉", "success")
             return redirect(url_for("tasks.index"))
-            
         except Exception as e:
             db.session.rollback()
-            flash(f"שגיאה ברישום המשתמש: {e}", "danger")
+            flash(f"שגיאה ברישום: {e}", "danger")
             return redirect(url_for("tasks.register"))
-        
     return render_template("register.html")
 
-# --- התנתקות ---
 @bp.route("/logout")
 @login_required
 def logout():
     logout_user()
-    flash("התנתקת מהמערכת בהצלחה.", "success")
+    flash("התנתקת בהצלחה.", "success")
     return redirect(url_for("tasks.login"))
 
 
 # =========================================================
-# 📋 ניהול משימות (Core Task Management)
+# 📋 ניהול משימות והרשאות (Core Task & Roles)
 # =========================================================
 
-# --- עמוד הבית (רשימת משימות + יצירה + סינון) ---
 @bp.route("/", methods=["GET", "POST"])
 @login_required
 def index():
+    # כל המשתמשים במערכת (כדי להציג למנהל רשימה לבחירת עובד)
+    all_users = User.query.all() if current_user.role == 'manager' else []
+
     if request.method == "POST":
+        # חומת אבטחה: מניעת יצירת משימה מעובדים
+        if current_user.role != 'manager':
+            flash("רק מנהלים מורשים ליצור משימות חדשות.", "danger")
+            return redirect(url_for("tasks.index"))
+
         due_date_str = request.form.get("due_date")
         due_date = None
-        
         if due_date_str:
             try:
                 parsed_date = datetime.strptime(due_date_str, "%Y-%m-%d").date()
-                # הגנה חיונית: פייתון קורס בשנים שגדולות מ-9999 (כמו 62026)
                 if parsed_date.year <= 9999:
                     due_date = parsed_date
             except ValueError:
-                # אם הפורמט שגוי או התאריך משוגע, נשמור כ-None מבלי לרסק את השרת
-                due_date = None
+                pass
+
+        # שיוך המשימה לעובד הנבחר
+        assigned_to_id = request.form.get("assigned_to_id")
+        if not assigned_to_id:
+            assigned_to_id = current_user.id
 
         task = Task(
             title=request.form.get("title", ""),
             description=request.form.get("description", ""),
             due_date=due_date,
             priority=request.form.get("priority", "LOW"),
-            user_id=current_user.id
+            user_id=current_user.id,
+            assigned_to_id=assigned_to_id
         )
         db.session.add(task)
         db.session.commit()
-        flash("המשימה נוצרה בהצלחה!", "success")
+        flash("המשימה נוצרה והוקצתה בהצלחה!", "success")
         return redirect(url_for("tasks.index"))
 
-    # לוגיקת שליפה, סינון ועימוד משימות
+    # סינון תצוגה: מנהל רואה הכל, עובד רואה רק מה שהוקצה לו
+    if current_user.role == 'manager':
+        query = Task.query
+    else:
+        query = Task.query.filter_by(assigned_to_id=current_user.id)
+
     search_query = request.args.get("search", "")
-    status_filter = request.args.get("status", "")
-    priority_filter = request.args.get("priority", "")
+    if search_query:
+        query = query.filter((Task.title.contains(search_query)) | (Task.description.contains(search_query)))
+
     page = request.args.get("page", 1, type=int)
     sort_by = request.args.get("sort", "created_at")
     order = request.args.get("order", "desc")
 
-    query = Task.query.filter_by(user_id=current_user.id)
-
-    if search_query:
-        query = query.filter((Task.title.contains(search_query)) | (Task.description.contains(search_query)))
-    if status_filter:
-        query = query.filter(Task.status == status_filter)
-    if priority_filter:
-        query = query.filter(Task.priority == priority_filter)
-
     if sort_by == "due_date":
         query = query.order_by(Task.due_date.asc() if order == "asc" else Task.due_date.desc())
-    elif sort_by == "priority":
-        query = query.order_by(Task.priority.asc() if order == "asc" else Task.priority.desc())
     else:
         query = query.order_by(Task.created_at.asc() if order == "asc" else Task.created_at.desc())
 
     pagination = db.paginate(query, page=page, per_page=5, error_out=False)
-    tasks = pagination.items
+    
+    return render_template("tasks.html", tasks=pagination.items, pagination=pagination, sort_by=sort_by, order=order, all_users=all_users)
 
-    return render_template("tasks.html", tasks=tasks, pagination=pagination, sort_by=sort_by, order=order)
-
-# --- סימון משימה כבוצע ---
 @bp.route("/done/<int:id>")
 @login_required
 def done(id):
-    task = Task.query.filter_by(id=id, user_id=current_user.id).first_or_404()
+    # עובד יכול לסמן רק את שלו, מנהל יכול לסמן הכל
+    if current_user.role == 'manager':
+        task = Task.query.get_or_404(id)
+    else:
+        task = Task.query.filter_by(id=id, assigned_to_id=current_user.id).first_or_404()
+        
     task.status = "DONE"
     db.session.commit()
     flash("כל הכבוד! המשימה בוצעה 🎉", "confetti")
     return redirect(url_for("tasks.index"))
 
-# --- מחיקת משימה ---
 @bp.route("/delete/<int:id>")
 @login_required
 def delete(id):
-    task = Task.query.filter_by(id=id, user_id=current_user.id).first_or_404()
+    # הגנת מנהל מוחלטת
+    if current_user.role != 'manager':
+        flash("אין לך הרשאה למחוק משימות.", "danger")
+        return redirect(url_for("tasks.index"))
+        
+    task = Task.query.get_or_404(id)
     db.session.delete(task)
     db.session.commit()
     flash("המשימה נמחקה בהצלחה.", "danger")
     return redirect(url_for("tasks.index"))
 
-# --- עריכת משימה ---
 @bp.route("/edit/<int:id>", methods=["GET", "POST"])
 @login_required
 def edit(id):
-    task = Task.query.filter_by(id=id, user_id=current_user.id).first_or_404()
+    if current_user.role != 'manager':
+        flash("אין לך הרשאה לערוך משימות. צפייה בלבד.", "danger")
+        return redirect(url_for("tasks.index"))
+        
+    task = Task.query.get_or_404(id)
     if request.method == "POST":
-        due_date_str = request.form.get("due_date")
-        due_date = None
-        if due_date_str:
-            try:
-                parsed_date = datetime.strptime(due_date_str, "%Y-%m-%d").date()
-                if parsed_date.year <= 9999:
-                    due_date = parsed_date
-            except ValueError:
-                due_date = None
-                
-        task.due_date = due_date
         task.title = request.form.get("title", "")
         task.description = request.form.get("description", "")
         task.priority = request.form.get("priority", "LOW")
-        
         db.session.commit()
         flash("השינויים נשמרו.", "success")
         return redirect(url_for("tasks.index"))
-        
     return render_template("edit_task.html", task=task)
 
 
 # =========================================================
-# 🚀 תצוגות מתקדמות (Kanban & Calendar)
+# 🚀 תצוגות מתקדמות
 # =========================================================
 
-# --- תצוגת לוח קאנבן ---
 @bp.route("/kanban")
 @login_required
 def kanban():
-    tasks = Task.query.filter_by(user_id=current_user.id).all()
+    if current_user.role == 'manager':
+        tasks = Task.query.all()
+    else:
+        tasks = Task.query.filter_by(assigned_to_id=current_user.id).all()
+        
     todo = [t for t in tasks if t.status == "TODO" or not t.status]
     in_progress = [t for t in tasks if t.status == "IN_PROGRESS"]
     done = [t for t in tasks if t.status == "DONE"]
     return render_template("kanban.html", todo=todo, in_progress=in_progress, done=done)
 
-# --- עדכון סטטוס גרירה (AJAX) ---
 @bp.route("/update_status/<int:id>", methods=["POST"])
 @login_required
 def update_status(id):
-    task = Task.query.filter_by(id=id, user_id=current_user.id).first()
+    if current_user.role == 'manager':
+        task = Task.query.get(id)
+    else:
+        task = Task.query.filter_by(id=id, assigned_to_id=current_user.id).first()
+        
     if task:
         data = request.get_json()
         new_status = data.get("status")
@@ -216,137 +209,94 @@ def update_status(id):
             return jsonify({"success": True})
     return jsonify({"success": False}), 400
 
-# --- תצוגת לוח שנה ---
 @bp.route("/calendar")
 @login_required
 def calendar():
     return render_template("calendar.html")
 
-# --- API מזין ללוח השנה ---
 @bp.route("/api/calendar_tasks")
 @login_required
 def calendar_tasks():
-    tasks = Task.query.filter_by(user_id=current_user.id).filter(Task.due_date.isnot(None)).all()
+    if current_user.role == 'manager':
+        tasks = Task.query.filter(Task.due_date.isnot(None)).all()
+    else:
+        tasks = Task.query.filter_by(assigned_to_id=current_user.id).filter(Task.due_date.isnot(None)).all()
+        
     events = []
     for t in tasks:
-        color = "#22c55e" if t.status == "DONE" else ("#ef4444" if t.priority == "HIGH" else ("#f59e0b" if t.priority == "MEDIUM" else "#3b82f6"))
-        events.append({ 
-            "id": t.id, 
-            "title": t.title, 
-            "start": t.due_date.isoformat(), 
-            "backgroundColor": color, 
-            "borderColor": color, 
-            "url": f"/edit/{t.id}" 
-        })
+        color = "#22c55e" if t.status == "DONE" else ("#ef4444" if t.priority == "HIGH" else "#3b82f6")
+        events.append({ "id": t.id, "title": t.title, "start": t.due_date.isoformat(), "backgroundColor": color, "borderColor": color, "url": f"/edit/{t.id}" if current_user.role == 'manager' else "#" })
     return jsonify(events)
 
 
 # =========================================================
-# ✉️ מערכת איפוס סיסמה במייל (Password Reset)
+# ✉️ מערכת איפוס סיסמה
 # =========================================================
 
 def send_reset_email(user):
     token = user.get_reset_token()
     reset_url = url_for('tasks.reset_token', token=token, _external=True)
-    
-    msg = Message('בקשה לאיפוס סיסמה - TaskManager',
-                  sender='noreply@taskmanager.com',
-                  recipients=[user.email])
-    
-    msg.body = f'''שלום {user.username},
-
-כדי לאפס את הסיסמה שלך, לחץ על הקישור הבא (הקישור בתוקף ל-10 דקות בלבד):
-{reset_url}
-
-אם לא ביקשת לאפס את הסיסמה, אנא התעלם מהודעה זו ולא ייגרם שום שינוי.
-
-בברכה,
-צוות המערכת
-'''
+    msg = Message('איפוס סיסמה', sender='noreply@demo.com', recipients=[user.email])
+    msg.body = f"לאיפוס לחץ: {reset_url}"
     mail.send(msg)
 
 @bp.route("/reset_password", methods=["GET", "POST"])
 def reset_request():
-    if current_user.is_authenticated:
-        return redirect(url_for('tasks.index'))
     if request.method == "POST":
-        email = request.form.get("email")
-        user = User.query.filter_by(email=email).first()
-        if user:
-            send_reset_email(user)
-        flash("אם האיมייל קיים במערכת, נשלחו אליו הוראות לאיפוס הסיסמה.", "info")
+        user = User.query.filter_by(email=request.form.get("email")).first()
+        if user: send_reset_email(user)
+        flash("הוראות נשלחו למייל.", "info")
         return redirect(url_for('tasks.login'))
     return render_template("reset_request.html")
 
 @bp.route("/reset_password/<token>", methods=["GET", "POST"])
 def reset_token(token):
-    if current_user.is_authenticated:
-        return redirect(url_for('tasks.index'))
-        
     user = User.verify_reset_token(token)
     if not user:
-        flash("הקישור לאיפוס סיסמה שגוי או שפג תוקפו. אנא בקש קישור חדש.", "danger")
+        flash("קישור לא חוקי.", "danger")
         return redirect(url_for('tasks.reset_request'))
-        
     if request.method == "POST":
-        password = request.form.get("password")
-        user.set_password(password)
+        user.set_password(request.form.get("password"))
         db.session.commit()
-        flash("הסיסמה שלך שונתה בהצלחה! כעת ניתן להתחבר עם הסיסמה החדשה.", "success")
+        flash("הסיסמה שונתה.", "success")
         return redirect(url_for('tasks.login'))
-        
     return render_template("reset_token.html")
 
 
 # =========================================================
-# 🛠️ כלי תחזוקה, סנכרון וחילוץ (Database Fix & Rescue)
+# 🛠️ כלי חילוץ ושדרוג אוטומטי למסד הנתונים
 # =========================================================
 
 @bp.route("/fix-db")
 def fix_db():
     output = []
+    # 1. הוספת עמודת הרשאות למשתמשים קיימים
     try:
-        db.session.execute(text('''
-            CREATE TABLE IF NOT EXISTS "user" (
-                id SERIAL PRIMARY KEY,
-                username VARCHAR(64) NOT NULL UNIQUE,
-                email VARCHAR(120) NOT NULL UNIQUE,
-                password_hash VARCHAR(256) NOT NULL
-            );
-        '''))
+        db.session.execute(text("ALTER TABLE \"user\" ADD COLUMN role VARCHAR(20) DEFAULT 'employee';"))
         db.session.commit()
-        output.append("✅ טבלת המשתמשים (user) נוצרה/אומתה בהצלחה.")
-    except Exception as e:
-        output.append(f"❌ שגיאה ביצירת טבלת המשתמשים: {e}")
+        output.append("✅ עמודת 'role' נוספה לטבלת המשתמשים.")
+    except Exception:
         db.session.rollback()
+        output.append("ℹ️ עמודת 'role' כבר קיימת.")
 
+    # 2. הוספת עמודת שיוך למשימות
     try:
-        db.session.execute(text('ALTER TABLE task ADD COLUMN user_id INTEGER;'))
+        db.session.execute(text('ALTER TABLE task ADD COLUMN assigned_to_id INTEGER;'))
         db.session.commit()
-        output.append("✅ עמודת user_id נוספה בהצלחה לטבלת המשימות.")
-    except Exception as e:
-        output.append("ℹ️ עמודת user_id כבר קיימת בטבלת המשימות.")
+        output.append("✅ עמודת 'assigned_to_id' נוספה לטבלת המשימות.")
+        # חלוקת המשימות הישנות למי שיצר אותן כדי שלא ייעלמו
+        db.session.execute(text('UPDATE task SET assigned_to_id = user_id WHERE assigned_to_id IS NULL;'))
+        db.session.commit()
+    except Exception:
         db.session.rollback()
+        output.append("ℹ️ עמודת 'assigned_to_id' כבר קיימת.")
 
-    return "<br>".join(output) + "<br><br><b>المערכת מוכנה! כעת כנס לעמוד הרישום ופתח חשבון קבוע.</b>"
-
-@bp.route("/rescue")
-def rescue():
+    # 3. הפיכת המשתמש mv למנהל הראשי (Manager) באופן אוטומטי
     try:
-        db.create_all()
-        admin = User.query.filter_by(username='mv').first()
-        
-        if admin:
-            admin.set_password("123456")
-            db.session.commit()
-            return f"✅ המשתמש '{admin.username}' נמצא במסד הנתונים! הסיסמה שלו אופסה בהצלחה ל- 123456. חזור לאתר והתחבר עם האימייל: {admin.email}"
-        else:
-            admin = User(username='mv', email='admin@test.com')
-            admin.set_password("123456")
-            db.session.add(admin)
-            db.session.commit()
-            return "✅ המשתמש לא היה קיים, אז יצרנו אותו עכשיו! כנס עם האימייל admin@test.com והסיסמה 123456."
-            
-    except Exception as e:
+        db.session.execute(text("UPDATE \"user\" SET role = 'manager' WHERE username = 'mv';"))
+        db.session.commit()
+        output.append("👑 המשתמש 'mv' הוגדר בהצלחה כמנהל המערכת.")
+    except Exception:
         db.session.rollback()
-        return f"❌ שגיאה במסד הנתונים: {e}"
+
+    return "<br>".join(output) + "<br><br><b>השדרוג למערכת ארגונית הסתיים! חזור לאתר והתחבר.</b>"
