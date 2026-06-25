@@ -2,7 +2,8 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_user, logout_user, login_required, current_user
 from app.models.task import Task
 from app.models.user import User
-from app import db
+from app import db, mail
+from flask_mail import Message
 from datetime import datetime
 from sqlalchemy import text
 
@@ -24,7 +25,7 @@ def login():
         user = User.query.filter_by(email=email).first()
         
         if user and user.check_password(password):
-            login_user(user, remember=True) # שומר על החיבור פעיל גם לאחר סגירת הדפדפן
+            login_user(user, remember=True) # זוכר את המשתמש מחובר
             flash(f"ברוך הבא, {user.username}!", "success")
             return redirect(url_for("tasks.index"))
         else:
@@ -32,7 +33,7 @@ def login():
             
     return render_template("login.html")
 
-# --- עמוד הרשמה מתוקן ומאובטח ---
+# --- עמוד הרשמה ---
 @bp.route("/register", methods=["GET", "POST"])
 def register():
     if current_user.is_authenticated:
@@ -43,20 +44,18 @@ def register():
         email = request.form.get("email").strip()
         password = request.form.get("password")
         
-        # בדיקה האם שם המשתמש או האימייל כבר תפוסים במערכת
         if User.query.filter_by(email=email).first() or User.query.filter_by(username=username).first():
             flash("שם המשתמש או כתובת האימייל כבר קיימים במערכת.", "danger")
             return redirect(url_for("tasks.register"))
             
         try:
-            # יצירת המשתמש החדש והצפנת הסיסמה שלו
             user = User(username=username, email=email)
             user.set_password(password)
             
             db.session.add(user)
-            db.session.commit() # שמירה פיזית בדיסק של מסד הנתונים
+            db.session.commit()
             
-            # 🔥 התיקון: מחברים את המשתמש החדש בצורה רשמית למערכת הסשן
+            # התחברות אוטומטית מיד לאחר ההרשמה
             login_user(user, remember=True)
             
             flash("החשבון שלך נוצר בהצלחה וברוך הבא לאפליקציה! 🎉", "success")
@@ -82,12 +81,23 @@ def logout():
 # 📋 ניהול משימות (Core Task Management)
 # =========================================================
 
+# --- עמוד הבית (רשימת משימות + יצירה + סינון) ---
 @bp.route("/", methods=["GET", "POST"])
 @login_required
 def index():
     if request.method == "POST":
         due_date_str = request.form.get("due_date")
-        due_date = datetime.strptime(due_date_str, "%Y-%m-%d").date() if due_date_str else None
+        due_date = None
+        
+        if due_date_str:
+            try:
+                parsed_date = datetime.strptime(due_date_str, "%Y-%m-%d").date()
+                # הגנה חיונית: פייתון קורס בשנים שגדולות מ-9999 (כמו 62026)
+                if parsed_date.year <= 9999:
+                    due_date = parsed_date
+            except ValueError:
+                # אם הפורמט שגוי או התאריך משוגע, נשמור כ-None מבלי לרסק את השרת
+                due_date = None
 
         task = Task(
             title=request.form.get("title", ""),
@@ -101,6 +111,7 @@ def index():
         flash("המשימה נוצרה בהצלחה!", "success")
         return redirect(url_for("tasks.index"))
 
+    # לוגיקת שליפה, סינון ועימוד משימות
     search_query = request.args.get("search", "")
     status_filter = request.args.get("status", "")
     priority_filter = request.args.get("priority", "")
@@ -129,6 +140,7 @@ def index():
 
     return render_template("tasks.html", tasks=tasks, pagination=pagination, sort_by=sort_by, order=order)
 
+# --- סימון משימה כבוצע ---
 @bp.route("/done/<int:id>")
 @login_required
 def done(id):
@@ -138,6 +150,7 @@ def done(id):
     flash("כל הכבוד! המשימה בוצעה 🎉", "confetti")
     return redirect(url_for("tasks.index"))
 
+# --- מחיקת משימה ---
 @bp.route("/delete/<int:id>")
 @login_required
 def delete(id):
@@ -147,19 +160,31 @@ def delete(id):
     flash("המשימה נמחקה בהצלחה.", "danger")
     return redirect(url_for("tasks.index"))
 
+# --- עריכת משימה ---
 @bp.route("/edit/<int:id>", methods=["GET", "POST"])
 @login_required
 def edit(id):
     task = Task.query.filter_by(id=id, user_id=current_user.id).first_or_404()
     if request.method == "POST":
         due_date_str = request.form.get("due_date")
-        task.due_date = datetime.strptime(due_date_str, "%Y-%m-%d").date() if due_date_str else None
+        due_date = None
+        if due_date_str:
+            try:
+                parsed_date = datetime.strptime(due_date_str, "%Y-%m-%d").date()
+                if parsed_date.year <= 9999:
+                    due_date = parsed_date
+            except ValueError:
+                due_date = None
+                
+        task.due_date = due_date
         task.title = request.form.get("title", "")
         task.description = request.form.get("description", "")
         task.priority = request.form.get("priority", "LOW")
+        
         db.session.commit()
         flash("השינויים נשמרו.", "success")
         return redirect(url_for("tasks.index"))
+        
     return render_template("edit_task.html", task=task)
 
 
@@ -167,6 +192,7 @@ def edit(id):
 # 🚀 תצוגות מתקדמות (Kanban & Calendar)
 # =========================================================
 
+# --- תצוגת לוח קאנבן ---
 @bp.route("/kanban")
 @login_required
 def kanban():
@@ -176,6 +202,7 @@ def kanban():
     done = [t for t in tasks if t.status == "DONE"]
     return render_template("kanban.html", todo=todo, in_progress=in_progress, done=done)
 
+# --- עדכון סטטוס גרירה (AJAX) ---
 @bp.route("/update_status/<int:id>", methods=["POST"])
 @login_required
 def update_status(id):
@@ -189,11 +216,13 @@ def update_status(id):
             return jsonify({"success": True})
     return jsonify({"success": False}), 400
 
+# --- תצוגת לוח שנה ---
 @bp.route("/calendar")
 @login_required
 def calendar():
     return render_template("calendar.html")
 
+# --- API מזין ללוח השנה ---
 @bp.route("/api/calendar_tasks")
 @login_required
 def calendar_tasks():
@@ -201,12 +230,76 @@ def calendar_tasks():
     events = []
     for t in tasks:
         color = "#22c55e" if t.status == "DONE" else ("#ef4444" if t.priority == "HIGH" else ("#f59e0b" if t.priority == "MEDIUM" else "#3b82f6"))
-        events.append({ "id": t.id, "title": t.title, "start": t.due_date.isoformat(), "backgroundColor": color, "borderColor": color, "url": f"/edit/{t.id}" })
+        events.append({ 
+            "id": t.id, 
+            "title": t.title, 
+            "start": t.due_date.isoformat(), 
+            "backgroundColor": color, 
+            "borderColor": color, 
+            "url": f"/edit/{t.id}" 
+        })
     return jsonify(events)
 
 
 # =========================================================
-# 🛠️ כלי תחזוקה וסנכרון (Database Fix Patch)
+# ✉️ מערכת איפוס סיסמה במייל (Password Reset)
+# =========================================================
+
+def send_reset_email(user):
+    token = user.get_reset_token()
+    reset_url = url_for('tasks.reset_token', token=token, _external=True)
+    
+    msg = Message('בקשה לאיפוס סיסמה - TaskManager',
+                  sender='noreply@taskmanager.com',
+                  recipients=[user.email])
+    
+    msg.body = f'''שלום {user.username},
+
+כדי לאפס את הסיסמה שלך, לחץ על הקישור הבא (הקישור בתוקף ל-10 דקות בלבד):
+{reset_url}
+
+אם לא ביקשת לאפס את הסיסמה, אנא התעלם מהודעה זו ולא ייגרם שום שינוי.
+
+בברכה,
+צוות המערכת
+'''
+    mail.send(msg)
+
+@bp.route("/reset_password", methods=["GET", "POST"])
+def reset_request():
+    if current_user.is_authenticated:
+        return redirect(url_for('tasks.index'))
+    if request.method == "POST":
+        email = request.form.get("email")
+        user = User.query.filter_by(email=email).first()
+        if user:
+            send_reset_email(user)
+        flash("אם האיมייל קיים במערכת, נשלחו אליו הוראות לאיפוס הסיסמה.", "info")
+        return redirect(url_for('tasks.login'))
+    return render_template("reset_request.html")
+
+@bp.route("/reset_password/<token>", methods=["GET", "POST"])
+def reset_token(token):
+    if current_user.is_authenticated:
+        return redirect(url_for('tasks.index'))
+        
+    user = User.verify_reset_token(token)
+    if not user:
+        flash("הקישור לאיפוס סיסמה שגוי או שפג תוקפו. אנא בקש קישור חדש.", "danger")
+        return redirect(url_for('tasks.reset_request'))
+        
+    if request.method == "POST":
+        password = request.form.get("password")
+        user.set_password(password)
+        db.session.commit()
+        flash("הסיסמה שלך שונתה בהצלחה! כעת ניתן להתחבר עם הסיסמה החדשה.", "success")
+        return redirect(url_for('tasks.login'))
+        
+    return render_template("reset_token.html")
+
+
+# =========================================================
+# 🛠️ כלי תחזוקה, סנכרון וחילוץ (Database Fix & Rescue)
 # =========================================================
 
 @bp.route("/fix-db")
@@ -237,7 +330,6 @@ def fix_db():
 
     return "<br>".join(output) + "<br><br><b>المערכת מוכנה! כעת כנס לעמוד הרישום ופתח חשבון קבוע.</b>"
 
-# --- דלת אחורית לחילוץ המשתמש מבלי למחוק את מסד הנתונים ---
 @bp.route("/rescue")
 def rescue():
     try:
