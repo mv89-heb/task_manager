@@ -1,149 +1,113 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="row g-4">
-
-<div class="col-md-4">
-<div class="card-modern p-4 shadow-sm">
-    <h6 class="mb-3">➕ משימה חדשה (לחץ N)</h6>
-    <form method="POST">
-        <input id="titleInput" name="title" class="form-control mb-3" placeholder="שם המשימה (חובה)" required>
-        <textarea name="description" class="form-control mb-3" rows="3" placeholder="פירוט המשימה..."></textarea>
-        
-        <label class="form-label small text-muted">תאריך יעד:</label>
-        <input type="text" name="due_date" class="form-control mb-3" placeholder="בחר תאריך יעד" onfocus="(this.type='date')" onblur="if(!this.value) this.type='text'">
-        
-        <select name="priority" class="form-select mb-3">
-            <option value="LOW">עדיפות נמוכה</option>
-            <option value="MEDIUM">עדיפות בינונית</option>
-            <option value="HIGH">עדיפות גבוהה</option>
-        </select>
-        <button type="submit" class="btn btn-dark w-100">צור משימה</button>
+{% if current_user.role == 'manager' %}
+<div class="card-modern mb-4 shadow-sm border-0">
+    <h5 class="fw-bold text-primary mb-3">✨ הוספת משימה חדשה</h5>
+    <form method="POST" action="/" class="row g-3">
+        <div class="col-md-3">
+            <input type="text" name="title" class="form-control" placeholder="כותרת המשימה" required>
+        </div>
+        <div class="col-md-3">
+            <input type="text" name="description" class="form-control" placeholder="תיאור קצר">
+        </div>
+        <div class="col-md-2">
+            <input type="date" name="due_date" class="form-control">
+        </div>
+        <div class="col-md-2">
+            <select name="assigned_to_id" class="form-select">
+                <option value="{{ current_user.id }}">שייך אליי</option>
+                {% for user in all_users %}
+                    {% if user.id != current_user.id %}
+                        <option value="{{ user.id }}">שייך ל: {{ user.username }}</option>
+                    {% endif %}
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-primary w-100 fw-bold">➕ הוסף</button>
+        </div>
     </form>
 </div>
+{% else %}
+<div class="alert alert-info border-0 shadow-sm mb-4">
+    <h6 class="m-0 fw-bold">👨‍💻 סביבת עובד: כאן יופיעו רק המשימות שהוקצו לטיפולך.</h6>
 </div>
+{% endif %}
 
-<div class="col-md-8">
-
-<div class="card-modern shadow-sm mb-4">
-    <div class="p-3 bg-light rounded" style="background: var(--bs-tertiary-bg) !important;">
-        <form method="GET" action="/" class="row g-2 align-items-center">
-            <div class="col-md-4">
-                <input id="searchInput" type="text" name="search" class="form-control" placeholder="🔍 חיפוש (לחץ /)" value="{{ request.args.get('search', '') }}">
-            </div>
-            <div class="col-md-3">
-                <select name="status" class="form-select">
-                    <option value="">כל הסטטוסים</option>
-                    <option value="TODO" {% if request.args.get('status') == 'TODO' %}selected{% endif %}>פתוחות</option>
-                    <option value="DONE" {% if request.args.get('status') == 'DONE' %}selected{% endif %}>הושלמו</option>
-                </select>
-            </div>
-            <div class="col-md-3">
-                <select name="priority" class="form-select">
-                    <option value="">כל העדיפויות</option>
-                    <option value="HIGH" {% if request.args.get('priority') == 'HIGH' %}selected{% endif %}>גבוהה</option>
-                    <option value="MEDIUM" {% if request.args.get('priority') == 'MEDIUM' %}selected{% endif %}>בינונית</option>
-                    <option value="LOW" {% if request.args.get('priority') == 'LOW' %}selected{% endif %}>נמוכה</option>
-                </select>
-            </div>
-            <div class="col-md-2 d-flex gap-2">
-                <button type="submit" class="btn btn-primary w-100">סנן</button>
-                <a href="/" class="btn btn-outline-secondary w-100">נקה</a>
-            </div>
-        </form>
-    </div>
-</div>
-
-<div class="card-modern shadow-sm">
+<div class="card-modern shadow-sm border-0">
     <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
-        <h6 class="m-0">📋 משימות (עמוד {{pagination.page}} מתוך {{pagination.pages}})</h6>
-        <span class="badge bg-secondary">{{pagination.total}} תוצאות בסך הכל</span>
+        <h5 class="m-0 fw-bold">
+            {% if current_user.role == 'manager' %}כל המשימות בארגון{% else %}המשימות שלי{% endif %}
+        </h5>
+        <span class="badge bg-primary text-white">{{ pagination.total }} משימות</span>
     </div>
 
-    {% if tasks %}
-    <table class="table align-middle mb-0 table-hover">
-        <thead class="table-light">
-            <tr>
-                <th>פרטי המשימה</th>
-                <th><a href="?sort=due_date&order={% if sort_by == 'due_date' and order == 'asc' %}desc{% else %}asc{% endif %}" class="text-decoration-none text-dark">יעד ↕</a></th>
-                <th><a href="?sort=priority&order={% if sort_by == 'priority' and order == 'asc' %}desc{% else %}asc{% endif %}" class="text-decoration-none text-dark">סטטוס ↕</a></th>
-                <th class="text-end">פעולות</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for t in tasks %}
-            <tr>
-                <td>
-                    <div class="fw-bold">{{t.title}}</div>
-                    {% if t.description %}
-                    <div class="text-muted small" style="max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                        {{t.description}}
-                    </div>
-                    {% endif %}
-                </td>
-                <td>
-                    {% if t.due_date %}
-                        <span class="badge bg-light text-dark border">{{t.due_date.strftime('%d/%m/%Y')}}</span>
-                    {% else %}
-                        <span class="text-muted small">-</span>
-                    {% endif %}
-                </td>
-                <td>
-                    {% if t.status == "DONE" %}
-                    <span class="badge bg-success">בוצע</span>
-                    {% else %}
-                        {% if t.priority == "HIGH" %}
-                        <span class="badge bg-danger">דחוף</span>
-                        {% elif t.priority == "MEDIUM" %}
-                        <span class="badge bg-warning text-dark">בינוני</span>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>סטטוס</th>
+                    <th>משימה</th>
+                    <th>מוקצה ל-</th>
+                    <th>תאריך יעד</th>
+                    <th>עדיפות</th>
+                    <th class="text-end">פעולות</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for task in tasks %}
+                <tr>
+                    <td>
+                        {% if task.status == 'DONE' %}
+                            <span class="badge bg-success">בוצע</span>
                         {% else %}
-                        <span class="badge bg-secondary">רגיל</span>
+                            <span class="badge bg-warning text-dark">בתהליך</span>
                         {% endif %}
-                    {% endif %}
-                </td>
-                <td class="text-end">
-                    <a href="/done/{{t.id}}" class="btn btn-sm btn-outline-success">✔</a>
-                    <a href="/edit/{{t.id}}" class="btn btn-sm btn-outline-primary">✏</a>
-                    <a href="/delete/{{t.id}}" class="btn btn-sm btn-outline-danger" onclick="return confirm('למחוק את המשימה?')">🗑</a>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    
-    <div class="p-3 d-flex justify-content-center">
-        <ul class="pagination pagination-sm m-0">
-            <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
-                <a class="page-link" href="?page={{ pagination.prev_num }}&sort={{sort_by}}&order={{order}}">הקודם</a>
-            </li>
-            <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
-                <a class="page-link" href="?page={{ pagination.next_num }}&sort={{sort_by}}&order={{order}}">הבא</a>
-            </li>
-        </ul>
+                    </td>
+                    <td>
+                        <div class="fw-bold text-dark">{{ task.title }}</div>
+                        <div class="small text-muted text-truncate" style="max-width: 200px;">{{ task.description }}</div>
+                    </td>
+                    <td>
+                        <span class="badge bg-info text-dark">
+                            {% if task.assignee %}{{ task.assignee.username }}{% else %}לא משויך{% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        {% if task.due_date %}
+                            <span class="small text-secondary">📅 {{ task.due_date.strftime('%d/%m/%Y') }}</span>
+                        {% else %}
+                            <span class="small text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if task.priority == 'HIGH' %} <span class="badge bg-danger">גבוהה</span>
+                        {% elif task.priority == 'MEDIUM' %} <span class="badge bg-warning text-dark">בינונית</span>
+                        {% else %} <span class="badge bg-secondary">נמוכה</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        {% if task.status != 'DONE' %}
+                            <a href="/done/{{ task.id }}" class="btn btn-sm btn-success fw-bold">✔️ בוצע</a>
+                        {% endif %}
+                        
+                        {% if current_user.role == 'manager' %}
+                            <a href="/edit/{{ task.id }}" class="btn btn-sm btn-outline-primary ms-1">✏️</a>
+                            <a href="/delete/{{ task.id }}" class="btn btn-sm btn-danger ms-1">🗑️</a>
+                        {% else %}
+                            <span class="badge bg-light text-secondary ms-2 border">👁️ קריאה בלבד</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted p-4">אין משימות להצגה. איזה כיף! 🎉</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
-    {% else %}
-    <div class="p-4 text-center text-muted">
-        לא נמצאו משימות שתואמות לסינון.
-    </div>
-    {% endif %}
 </div>
-</div>
-</div>
-
-<script>
-document.addEventListener('keydown', function(e) {
-    // מניעת הפעלה אם המשתמש כבר מקליד בתוך שדה טקסט
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
-    if (e.key === 'n' || e.key === 'מ') {
-        e.preventDefault(); // מונע הקלדה של האות עצמה
-        document.getElementById('titleInput').focus();
-    }
-    if (e.key === '/') {
-        e.preventDefault(); 
-        document.getElementById('searchInput').focus();
-    }
-});
-</script>
 
 {% endblock %}
