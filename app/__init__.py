@@ -28,7 +28,7 @@ def create_app():
         app.register_blueprint(dash_bp)
 
         # ⚠️ הפעלה חד פעמית כדי לעדכן את הטבלאות עם עמודת הקישור החדשה user_id
-        db.drop_all()
+        
         db.create_all()
 
     return app
