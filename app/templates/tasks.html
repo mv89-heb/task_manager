@@ -160,7 +160,6 @@
     {% endif %}
 </div>
 
-
 {% if current_user.role == 'manager' %}
 <div class="modal fade" id="createTaskModal" tabindex="-1" aria-labelledby="createTaskModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -202,7 +201,7 @@
                             <option value="{{ current_user.id }}">שייך אליי ({{ current_user.username }})</option>
                             {% for user in all_users %}
                                 {% if user.id != current_user.id %}
-                                    <option value="{{ user.id }}">שייך אל: {{ user.username }} {% if user.role=='manager' %}(מנהל){% endif %}</option>
+                                    <option value="{{ user.id }}">שייך אל: {{ user.username }}</option>
                                 {% endif %}
                             {% endfor %}
                         </select>
@@ -217,7 +216,5 @@
     </div>
 </div>
 {% endif %}
-
-{% set now_date = datetime %}
 
 {% endblock %}
