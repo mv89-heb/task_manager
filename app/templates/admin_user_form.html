@@ -27,6 +27,17 @@
                     <input type="email" name="email" class="form-control" value="{{ user.email if user else '' }}" required>
                 </div>
                 
+                <div class="mb-3">
+                    <label class="form-label text-muted small">תפקיד והרשאות מערכת</label>
+                    <select name="role" class="form-select" {% if user and user.username == 'mv' %}disabled{% endif %}>
+                        <option value="employee" {% if user and user.role == 'employee' %}selected{% endif %}>👨‍💻 עובד (Employee) - צפייה בלבד</option>
+                        <option value="manager" {% if user and user.role == 'manager' %}selected{% endif %}>👑 מנהל (Manager) - ניהול, יצירה ומחיקה</option>
+                    </select>
+                    {% if user and user.username == 'mv' %}
+                        <input type="hidden" name="role" value="manager">
+                    {% endif %}
+                </div>
+                
                 <div class="mb-4">
                     <label class="form-label text-muted small">
                         סיסמה 
