@@ -4,7 +4,7 @@ from app.models.task import Task
 from app.models.user import User
 from app import db, mail
 from flask_mail import Message
-from datetime import datetime
+from datetime import datetime, date
 from sqlalchemy import text
 
 bp = Blueprint("tasks", __name__)
@@ -69,11 +69,10 @@ def logout():
 @bp.route("/", methods=["GET", "POST"])
 @login_required
 def index():
-    # כל המשתמשים במערכת (כדי להציג למנהל רשימה לבחירת עובד)
+    # שליפת כל המשתמשים עבור טופס ההקצאה של המנהל
     all_users = User.query.all() if current_user.role == 'manager' else []
 
     if request.method == "POST":
-        # חומת אבטחה: מניעת יצירת משימה מעובדים
         if current_user.role != 'manager':
             flash("רק מנהלים מורשים ליצור משימות חדשות.", "danger")
             return redirect(url_for("tasks.index"))
@@ -88,7 +87,6 @@ def index():
             except ValueError:
                 pass
 
-        # שיוך המשימה לעובד הנבחר
         assigned_to_id = request.form.get("assigned_to_id")
         if not assigned_to_id:
             assigned_to_id = current_user.id
@@ -106,33 +104,50 @@ def index():
         flash("המשימה נוצרה והוקצתה בהצלחה!", "success")
         return redirect(url_for("tasks.index"))
 
-    # סינון תצוגה: מנהל רואה הכל, עובד רואה רק מה שהוקצה לו
+    # לוגיקת סינון: מנהל רואה את הכל, עובד רואה רק מה ששויך אליו
     if current_user.role == 'manager':
         query = Task.query
     else:
         query = Task.query.filter_by(assigned_to_id=current_user.id)
 
+    # סינון לפי חיפוש חופשי
     search_query = request.args.get("search", "")
     if search_query:
         query = query.filter((Task.title.contains(search_query)) | (Task.description.contains(search_query)))
 
+    # סינון לפי סטטוס
+    status_filter = request.args.get("status", "")
+    if status_filter:
+        query = query.filter(Task.status == status_filter)
+        
+    # סינון לפי עדיפות
+    priority_filter = request.args.get("priority", "")
+    if priority_filter:
+        query = query.filter(Task.priority == priority_filter)
+
+    # מיון ועימוד
     page = request.args.get("page", 1, type=int)
     sort_by = request.args.get("sort", "created_at")
-    order = request.args.get("order", "desc")
-
+    
     if sort_by == "due_date":
-        query = query.order_by(Task.due_date.asc() if order == "asc" else Task.due_date.desc())
+        query = query.order_by(Task.due_date.asc())
     else:
-        query = query.order_by(Task.created_at.asc() if order == "asc" else Task.created_at.desc())
+        query = query.order_by(Task.created_at.desc())
 
     pagination = db.paginate(query, page=page, per_page=5, error_out=False)
     
-    return render_template("tasks.html", tasks=pagination.items, pagination=pagination, sort_by=sort_by, order=order, all_users=all_users)
+    return render_template(
+        "tasks.html", 
+        tasks=pagination.items, 
+        pagination=pagination, 
+        sort_by=sort_by, 
+        all_users=all_users, 
+        datetime=date.today() # העברת תאריך היום לצביעת איחורים באדום
+    )
 
 @bp.route("/done/<int:id>")
 @login_required
 def done(id):
-    # עובד יכול לסמן רק את שלו, מנהל יכול לסמן הכל
     if current_user.role == 'manager':
         task = Task.query.get_or_404(id)
     else:
@@ -146,7 +161,6 @@ def done(id):
 @bp.route("/delete/<int:id>")
 @login_required
 def delete(id):
-    # הגנת מנהל מוחלטת
     if current_user.role != 'manager':
         flash("אין לך הרשאה למחוק משימות.", "danger")
         return redirect(url_for("tasks.index"))
@@ -169,14 +183,24 @@ def edit(id):
         task.title = request.form.get("title", "")
         task.description = request.form.get("description", "")
         task.priority = request.form.get("priority", "LOW")
+        
+        due_date_str = request.form.get("due_date")
+        if due_date_str:
+            try:
+                task.due_date = datetime.strptime(due_date_str, "%Y-%m-%d").date()
+            except ValueError:
+                pass
+        else:
+            task.due_date = None
+
         db.session.commit()
-        flash("השינויים נשמרו.", "success")
+        flash("השינויים נשמרו המשימה עודכנה.", "success")
         return redirect(url_for("tasks.index"))
     return render_template("edit_task.html", task=task)
 
 
 # =========================================================
-# 🚀 תצוגות מתקדמות
+# 🚀 תצוגות מתקדמות (Kanban & Calendar)
 # =========================================================
 
 @bp.route("/kanban")
@@ -225,27 +249,35 @@ def calendar_tasks():
     events = []
     for t in tasks:
         color = "#22c55e" if t.status == "DONE" else ("#ef4444" if t.priority == "HIGH" else "#3b82f6")
-        events.append({ "id": t.id, "title": t.title, "start": t.due_date.isoformat(), "backgroundColor": color, "borderColor": color, "url": f"/edit/{t.id}" if current_user.role == 'manager' else "#" })
+        events.append({ 
+            "id": t.id, 
+            "title": t.title, 
+            "start": t.due_date.isoformat(), 
+            "backgroundColor": color, 
+            "borderColor": color, 
+            "url": f"/edit/{t.id}" if current_user.role == 'manager' else "#" 
+        })
     return jsonify(events)
 
 
 # =========================================================
-# ✉️ מערכת איפוס סיסמה
+# ✉️ מערכת איפוס סיסמה במייל
 # =========================================================
 
 def send_reset_email(user):
     token = user.get_reset_token()
     reset_url = url_for('tasks.reset_token', token=token, _external=True)
     msg = Message('איפוס סיסמה', sender='noreply@demo.com', recipients=[user.email])
-    msg.body = f"לאיפוס לחץ: {reset_url}"
+    msg.body = f"לאיפוס לחץ על הקישור: {reset_url}"
     mail.send(msg)
 
 @bp.route("/reset_password", methods=["GET", "POST"])
 def reset_request():
     if request.method == "POST":
         user = User.query.filter_by(email=request.form.get("email")).first()
-        if user: send_reset_email(user)
-        flash("הוראות נשלחו למייל.", "info")
+        if user: 
+            send_reset_email(user)
+        flash("אם האימייל קיים במערכת, נשלחו אליו הוראות לאיפוס הסיסמה.", "info")
         return redirect(url_for('tasks.login'))
     return render_template("reset_request.html")
 
@@ -253,12 +285,12 @@ def reset_request():
 def reset_token(token):
     user = User.verify_reset_token(token)
     if not user:
-        flash("קישור לא חוקי.", "danger")
+        flash("קישור פג תוקף או שגוי.", "danger")
         return redirect(url_for('tasks.reset_request'))
     if request.method == "POST":
         user.set_password(request.form.get("password"))
         db.session.commit()
-        flash("הסיסמה שונתה.", "success")
+        flash("הסיסמה שונתה בהצלחה.", "success")
         return redirect(url_for('tasks.login'))
     return render_template("reset_token.html")
 
@@ -270,7 +302,6 @@ def reset_token(token):
 @bp.route("/fix-db")
 def fix_db():
     output = []
-    # 1. הוספת עמודת הרשאות למשתמשים קיימים
     try:
         db.session.execute(text("ALTER TABLE \"user\" ADD COLUMN role VARCHAR(20) DEFAULT 'employee';"))
         db.session.commit()
@@ -279,19 +310,16 @@ def fix_db():
         db.session.rollback()
         output.append("ℹ️ עמודת 'role' כבר קיימת.")
 
-    # 2. הוספת עמודת שיוך למשימות
     try:
         db.session.execute(text('ALTER TABLE task ADD COLUMN assigned_to_id INTEGER;'))
         db.session.commit()
         output.append("✅ עמודת 'assigned_to_id' נוספה לטבלת המשימות.")
-        # חלוקת המשימות הישנות למי שיצר אותן כדי שלא ייעלמו
         db.session.execute(text('UPDATE task SET assigned_to_id = user_id WHERE assigned_to_id IS NULL;'))
         db.session.commit()
     except Exception:
         db.session.rollback()
         output.append("ℹ️ עמודת 'assigned_to_id' כבר קיימת.")
 
-    # 3. הפיכת המשתמש mv למנהל הראשי (Manager) באופן אוטומטי
     try:
         db.session.execute(text("UPDATE \"user\" SET role = 'manager' WHERE username = 'mv';"))
         db.session.commit()
@@ -300,3 +328,22 @@ def fix_db():
         db.session.rollback()
 
     return "<br>".join(output) + "<br><br><b>השדרוג למערכת ארגונית הסתיים! חזור לאתר והתחבר.</b>"
+
+@bp.route("/rescue")
+def rescue():
+    try:
+        db.create_all()
+        admin = User.query.filter_by(username='mv').first()
+        if admin:
+            admin.set_password("123456")
+            db.session.commit()
+            return f"✅ הסיסמה אופסה ל-123456 עבור {admin.email}"
+        else:
+            admin = User(username='mv', email='admin@test.com')
+            admin.set_password("123456")
+            db.session.add(admin)
+            db.session.commit()
+            return "✅ יוזר מנהל mv נוצר עם הסיסמה 123456"
+    except Exception as e:
+        db.session.rollback()
+        return f"❌ שגיאה: {e}"
