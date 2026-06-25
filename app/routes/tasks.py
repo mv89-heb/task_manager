@@ -26,7 +26,7 @@ def login():
             flash(f"ברוך הבא, {user.username}!", "success")
             return redirect(url_for("tasks.index"))
         else:
-            flash("אימייל או סיסמה לא נכונים.", "danger")
+            flash("איมייל או סיסמה לא נכונים.", "danger")
     return render_template("login.html")
 
 @bp.route("/register", methods=["GET", "POST"])
@@ -136,13 +136,14 @@ def index():
 
     pagination = db.paginate(query, page=page, per_page=5, error_out=False)
     
+    # מיפוי נכון של תאריך היום ל-HTML (now_date) למניעת קריסת שרת
     return render_template(
         "tasks.html", 
         tasks=pagination.items, 
         pagination=pagination, 
         sort_by=sort_by, 
         all_users=all_users, 
-        datetime=date.today() # העברת תאריך היום לצביעת איחורים באדום
+        now_date=date.today()
     )
 
 @bp.route("/done/<int:id>")
@@ -155,7 +156,7 @@ def done(id):
         
     task.status = "DONE"
     db.session.commit()
-    flash("כל הכבוד! המשימה בוצעה 🎉", "confetti")
+    flash("כל הכבוד! המשימה בוצעה 🎉", "success")
     return redirect(url_for("tasks.index"))
 
 @bp.route("/delete/<int:id>")
