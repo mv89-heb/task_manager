@@ -1,113 +1,223 @@
 {% extends "base.html" %}
 {% block content %}
 
-{% if current_user.role == 'manager' %}
-<div class="card-modern mb-4 shadow-sm border-0">
-    <h5 class="fw-bold text-primary mb-3">✨ הוספת משימה חדשה</h5>
-    <form method="POST" action="/" class="row g-3">
-        <div class="col-md-3">
-            <input type="text" name="title" class="form-control" placeholder="כותרת המשימה" required>
-        </div>
-        <div class="col-md-3">
-            <input type="text" name="description" class="form-control" placeholder="תיאור קצר">
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="fw-bold text-dark mb-1">
+            {% if current_user.role == 'manager' %}🚀 כל המשימות בארגון{% else %}🎯 המשימות שלי{% endif %}
+        </h3>
+        <p class="text-muted small m-0">ניהול, מעקב וסינון משימות מתקדם</p>
+    </div>
+    
+    {% if current_user.role == 'manager' %}
+    <button type="button" class="btn btn-primary fw-bold shadow-sm px-4" data-bs-toggle="modal" data-bs-target="#createTaskModal">
+        ➕ צור משימה חדשה
+    </button>
+    {% else %}
+    <span class="badge bg-light text-dark border px-3 py-2 fs-6 shadow-sm">👨‍💻 סביבת עובד</span>
+    {% endif %}
+</div>
+
+<div class="card-modern shadow-sm border-0 mb-4 bg-white">
+    <form method="GET" action="/" class="row g-2 align-items-end p-2">
+        <div class="col-md-4">
+            <label class="form-label small text-muted mb-1">חיפוש חופשי</label>
+            <input type="text" name="search" class="form-control" placeholder="חפש משימה..." value="{{ request.args.get('search', '') }}">
         </div>
         <div class="col-md-2">
-            <input type="date" name="due_date" class="form-control">
-        </div>
-        <div class="col-md-2">
-            <select name="assigned_to_id" class="form-select">
-                <option value="{{ current_user.id }}">שייך אליי</option>
-                {% for user in all_users %}
-                    {% if user.id != current_user.id %}
-                        <option value="{{ user.id }}">שייך ל: {{ user.username }}</option>
-                    {% endif %}
-                {% endfor %}
+            <label class="form-label small text-muted mb-1">סטטוס</label>
+            <select name="status" class="form-select">
+                <option value="">הכל</option>
+                <option value="TODO" {% if request.args.get('status') == 'TODO' %}selected{% endif %}>לביצוע</option>
+                <option value="IN_PROGRESS" {% if request.args.get('status') == 'IN_PROGRESS' %}selected{% endif %}>בתהליך</option>
+                <option value="DONE" {% if request.args.get('status') == 'DONE' %}selected{% endif %}>בוצע</option>
             </select>
         </div>
         <div class="col-md-2">
-            <button type="submit" class="btn btn-primary w-100 fw-bold">➕ הוסף</button>
+            <label class="form-label small text-muted mb-1">עדיפות</label>
+            <select name="priority" class="form-select">
+                <option value="">הכל</option>
+                <option value="HIGH" {% if request.args.get('priority') == 'HIGH' %}selected{% endif %}>🔴 גבוהה</option>
+                <option value="MEDIUM" {% if request.args.get('priority') == 'MEDIUM' %}selected{% endif %}>🟡 בינונית</option>
+                <option value="LOW" {% if request.args.get('priority') == 'LOW' %}selected{% endif %}>🔵 נמוכה</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label small text-muted mb-1">מיון לפי</label>
+            <select name="sort" class="form-select">
+                <option value="created_at" {% if request.args.get('sort') == 'created_at' %}selected{% endif %}>תאריך יצירה</option>
+                <option value="due_date" {% if request.args.get('sort') == 'due_date' %}selected{% endif %}>תאריך יעד</option>
+            </select>
+        </div>
+        <div class="col-md-2 d-flex gap-2">
+            <button type="submit" class="btn btn-secondary w-100 fw-bold">🔍 סנן</button>
+            <a href="/" class="btn btn-light border text-muted px-3" title="נקה סינונים">✖</a>
         </div>
     </form>
 </div>
-{% else %}
-<div class="alert alert-info border-0 shadow-sm mb-4">
-    <h6 class="m-0 fw-bold">👨‍💻 סביבת עובד: כאן יופיעו רק המשימות שהוקצו לטיפולך.</h6>
-</div>
-{% endif %}
 
-<div class="card-modern shadow-sm border-0">
-    <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
-        <h5 class="m-0 fw-bold">
-            {% if current_user.role == 'manager' %}כל המשימות בארגון{% else %}המשימות שלי{% endif %}
-        </h5>
-        <span class="badge bg-primary text-white">{{ pagination.total }} משימות</span>
-    </div>
-
+<div class="card-modern shadow-sm border-0 bg-white">
     <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
+        <table class="table table-hover align-middle mb-0" style="min-width: 800px;">
+            <thead class="table-light text-muted small text-uppercase">
                 <tr>
-                    <th>סטטוס</th>
-                    <th>משימה</th>
-                    <th>מוקצה ל-</th>
+                    <th class="ps-4">סטטוס</th>
+                    <th>פרטי המשימה</th>
+                    <th>אחראי</th>
                     <th>תאריך יעד</th>
                     <th>עדיפות</th>
-                    <th class="text-end">פעולות</th>
+                    <th class="text-end pe-4">פעולות</th>
                 </tr>
             </thead>
             <tbody>
                 {% for task in tasks %}
                 <tr>
-                    <td>
+                    <td class="ps-4">
                         {% if task.status == 'DONE' %}
-                            <span class="badge bg-success">בוצע</span>
+                            <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">✔️ בוצע</span>
+                        {% elif task.status == 'IN_PROGRESS' %}
+                            <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 px-2 py-1">⏳ בתהליך</span>
                         {% else %}
-                            <span class="badge bg-warning text-dark">בתהליך</span>
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2 py-1">📋 לביצוע</span>
                         {% endif %}
                     </td>
                     <td>
-                        <div class="fw-bold text-dark">{{ task.title }}</div>
-                        <div class="small text-muted text-truncate" style="max-width: 200px;">{{ task.description }}</div>
+                        <div class="fw-bold text-dark fs-6">{{ task.title }}</div>
+                        <div class="small text-muted text-truncate" style="max-width: 250px;" title="{{ task.description }}">
+                            {{ task.description or 'ללא תיאור' }}
+                        </div>
                     </td>
                     <td>
-                        <span class="badge bg-info text-dark">
-                            {% if task.assignee %}{{ task.assignee.username }}{% else %}לא משויך{% endif %}
-                        </span>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width: 28px; height: 28px; font-size: 12px;">
+                                {% if task.assignee %}{{ task.assignee.username[:1]|upper }}{% else %}?{% endif %}
+                            </div>
+                            <span class="small fw-semibold text-dark">
+                                {% if task.assignee %}{{ task.assignee.username }}{% else %}לא שויך{% endif %}
+                            </span>
+                        </div>
                     </td>
                     <td>
                         {% if task.due_date %}
-                            <span class="small text-secondary">📅 {{ task.due_date.strftime('%d/%m/%Y') }}</span>
+                            <span class="small fw-semibold {% if task.due_date < now_date and task.status != 'DONE' %}text-danger{% else %}text-secondary{% endif %}">
+                                📅 {{ task.due_date.strftime('%d/%m/%Y') }}
+                            </span>
                         {% else %}
                             <span class="small text-muted">-</span>
                         {% endif %}
                     </td>
                     <td>
-                        {% if task.priority == 'HIGH' %} <span class="badge bg-danger">גבוהה</span>
-                        {% elif task.priority == 'MEDIUM' %} <span class="badge bg-warning text-dark">בינונית</span>
-                        {% else %} <span class="badge bg-secondary">נמוכה</span>
+                        {% if task.priority == 'HIGH' %} 
+                            <span class="text-danger fw-bold small">🔴 גבוהה</span>
+                        {% elif task.priority == 'MEDIUM' %} 
+                            <span class="text-warning fw-bold small" style="color: #d97706 !important;">🟡 בינונית</span>
+                        {% else %} 
+                            <span class="text-primary fw-bold small">🔵 נמוכה</span>
                         {% endif %}
                     </td>
-                    <td class="text-end">
-                        {% if task.status != 'DONE' %}
-                            <a href="/done/{{ task.id }}" class="btn btn-sm btn-success fw-bold">✔️ בוצע</a>
-                        {% endif %}
-                        
-                        {% if current_user.role == 'manager' %}
-                            <a href="/edit/{{ task.id }}" class="btn btn-sm btn-outline-primary ms-1">✏️</a>
-                            <a href="/delete/{{ task.id }}" class="btn btn-sm btn-danger ms-1">🗑️</a>
-                        {% else %}
-                            <span class="badge bg-light text-secondary ms-2 border">👁️ קריאה בלבד</span>
-                        {% endif %}
+                    <td class="text-end pe-4">
+                        <div class="d-flex justify-content-end gap-1">
+                            {% if task.status != 'DONE' %}
+                                <a href="/done/{{ task.id }}" class="btn btn-sm btn-light border text-success" title="סמן כבוצע">✔️</a>
+                            {% endif %}
+                            
+                            {% if current_user.role == 'manager' %}
+                                <a href="/edit/{{ task.id }}" class="btn btn-sm btn-light border text-primary" title="ערוך משימה">✏️</a>
+                                <a href="/delete/{{ task.id }}" class="btn btn-sm btn-light border text-danger" title="מחק משימה" onclick="return confirm('למחוק את המשימה?')">🗑️</a>
+                            {% else %}
+                                <span class="badge bg-light text-secondary border mt-1">👁️ קריאה בלבד</span>
+                            {% endif %}
+                        </div>
                     </td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="6" class="text-center text-muted p-4">אין משימות להצגה. איזה כיף! 🎉</td>
+                    <td colspan="6" class="text-center py-5">
+                        <div class="text-muted mb-2" style="font-size: 40px;">📝</div>
+                        <h5 class="fw-bold text-dark">אין משימות להצגה</h5>
+                        <p class="text-muted small">לא נמצאו משימות שתואמות לסינון שלך, או שהכל כבר בוצע!</p>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+    
+    {% if pagination.pages > 1 %}
+    <div class="p-3 border-top d-flex justify-content-center">
+        <ul class="pagination pagination-sm m-0">
+            {% for page_num in pagination.iter_pages() %}
+                {% if page_num %}
+                    <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('tasks.index', page=page_num, search=request.args.get('search'), status=request.args.get('status'), priority=request.args.get('priority'), sort=request.args.get('sort')) }}">{{ page_num }}</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                {% endif %}
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
 </div>
+
+
+{% if current_user.role == 'manager' %}
+<div class="modal fade" id="createTaskModal" tabindex="-1" aria-labelledby="createTaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-bottom-0 bg-light rounded-top-4">
+                <h5 class="modal-title fw-bold text-primary" id="createTaskModalLabel">✨ משימה חדשה</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="/">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-muted">כותרת המשימה <span class="text-danger">*</span></label>
+                        <input type="text" name="title" class="form-control form-control-lg fs-6" placeholder="מה צריך לעשות?" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-muted">פירוט המשימה (אופציונלי)</label>
+                        <textarea name="description" class="form-control" rows="3" placeholder="הוסף פרטים, קישורים או הנחיות לעובד..."></textarea>
+                    </div>
+                    
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-muted">תאריך יעד</label>
+                            <input type="date" name="due_date" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-muted">עדיפות</label>
+                            <select name="priority" class="form-select">
+                                <option value="LOW">🔵 נמוכה</option>
+                                <option value="MEDIUM">🟡 בינונית</option>
+                                <option value="HIGH">🔴 גבוהה</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold small text-muted">הקצה לעובד</label>
+                        <select name="assigned_to_id" class="form-select form-select-lg fs-6">
+                            <option value="{{ current_user.id }}">שייך אליי ({{ current_user.username }})</option>
+                            {% for user in all_users %}
+                                {% if user.id != current_user.id %}
+                                    <option value="{{ user.id }}">שייך אל: {{ user.username }} {% if user.role=='manager' %}(מנהל){% endif %}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0 bg-light rounded-bottom-4">
+                    <button type="button" class="btn btn-outline-secondary fw-bold px-4" data-bs-dismiss="modal">ביטול</button>
+                    <button type="submit" class="btn btn-primary fw-bold px-4">🚀 צור משימה</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% set now_date = datetime %}
 
 {% endblock %}
