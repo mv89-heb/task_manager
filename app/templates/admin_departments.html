@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="m-0 fw-bold" style="color: var(--brand-navy);"><i class="bi bi-building text-primary"></i> ניהול מחלקות</h4>
+    <a href="/admin" class="btn btn-outline-secondary fw-semibold"><i class="bi bi-arrow-right"></i> חזרה לפאנל הניהול</a>
+</div>
+
+<div class="row">
+    <div class="col-md-5 mb-4">
+        <div class="card-modern shadow-sm p-4" style="border-top: 3px solid var(--brand-blue);">
+            <h6 class="fw-bold mb-3"><i class="bi bi-plus-circle text-primary"></i> מחלקה חדשה</h6>
+            <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="mb-3">
+                    <label class="form-label text-muted small">שם המחלקה</label>
+                    <input type="text" name="name" class="form-control" placeholder="לדוגמה: אחזקה" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-muted small">תיאור (אופציונלי)</label>
+                    <input type="text" name="description" class="form-control" placeholder="תיאור קצר של תחום האחריות">
+                </div>
+                <button type="submit" class="btn btn-primary fw-semibold w-100"><i class="bi bi-check2"></i> צור מחלקה</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-md-7">
+        <div class="card-modern shadow-sm p-0">
+            <div class="p-3 border-bottom">
+                <h6 class="m-0 fw-bold"><i class="bi bi-diagram-3 text-primary"></i> מחלקות קיימות</h6>
+            </div>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0 table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>שם המחלקה</th>
+                            <th>מנהלי תחום</th>
+                            <th>חברי מחלקה</th>
+                            <th class="text-end">פעולות</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stats in dept_stats %}
+                        <tr style="animation: fadeIn 0.3s var(--ease) backwards; animation-delay: {{ loop.index0 * 0.04 }}s;">
+                            <td class="fw-bold">{{ stats.dept.name }}</td>
+                            <td>
+                                {% if stats.managers %}
+                                    {% for m in stats.managers %}<span class="badge ms-1" style="background: var(--brand-blue);">{{ m }}</span>{% endfor %}
+                                {% else %}
+                                    <span class="text-muted small">אין מנהל תחום משויך</span>
+                                {% endif %}
+                            </td>
+                            <td><span class="badge bg-light text-dark border">{{ stats.member_count }} משתמשים</span></td>
+                            <td class="text-end">
+                                <form method="POST" action="/admin/departments/{{ stats.dept.id }}/delete" class="d-inline"
+                                      onsubmit="return confirm('למחוק את המחלקה {{ stats.dept.name }}? (אפשרי רק אם היא ריקה)')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i> מחק</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="text-center text-muted py-4">עדיין לא הוגדרו מחלקות. צור מחלקה ראשונה משמאל.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

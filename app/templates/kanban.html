@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+    .kanban-board {
+        display: flex;
+        gap: 20px;
+        overflow-x: auto;
+        padding-bottom: 20px;
+    }
+    .kanban-col {
+        flex: 1;
+        min-width: 300px;
+        background: var(--bs-tertiary-bg);
+        border-radius: 14px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid var(--bs-border-color);
+        border-top: 3px solid var(--col-accent, var(--brand-blue));
+    }
+    .kanban-col-header {
+        font-weight: 600;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--bs-border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .kanban-tasks {
+        flex: 1;
+        min-height: 200px;
+    }
+    .kanban-card {
+        background: var(--bs-card-bg);
+        padding: 14px 16px;
+        border-radius: 10px;
+        box-shadow: 0 1px 3px rgba(15,28,63,0.06);
+        margin-bottom: 12px;
+        cursor: grab;
+        border: 1px solid var(--bs-border-color);
+        border-right: 3px solid var(--col-accent, var(--brand-blue));
+        transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+        animation: fadeInUp 0.3s var(--ease) backwards;
+    }
+    .kanban-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-medium);
+    }
+    .kanban-card:active {
+        cursor: grabbing;
+        transform: scale(1.02);
+    }
+    .kanban-card.sortable-ghost {
+        opacity: 0.4;
+        background: var(--brand-blue-light);
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="m-0 fw-bold" style="color: var(--brand-navy);"><i class="bi bi-kanban text-primary"></i> לוח קנבן</h4>
+</div>
+
+<div class="kanban-board">
+
+    <div class="kanban-col" style="--col-accent: #64748b;">
+        <div class="kanban-col-header">
+            <span><i class="bi bi-circle text-secondary"></i> לביצוע</span>
+            <span class="badge bg-secondary">{{todo|length}}</span>
+        </div>
+        <div class="kanban-tasks" id="col-TODO" data-status="TODO">
+            {% for t in todo %}
+            <div class="kanban-card" data-id="{{t.id}}" style="animation-delay: {{ loop.index0 * 0.03 }}s;">
+                <div class="fw-bold mb-1">{{t.title}}</div>
+                {% if t.priority == 'HIGH' %}<span class="badge bg-danger mb-2"><i class="bi bi-arrow-up-circle-fill"></i> דחוף</span>{% endif %}
+                <div class="small text-muted">{{t.description|truncate(40) if t.description else ''}}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="kanban-col" style="--col-accent: #2454d6;">
+        <div class="kanban-col-header">
+            <span style="color: var(--brand-blue);"><i class="bi bi-hourglass-split"></i> בתהליך עבודה</span>
+            <span class="badge" style="background: var(--brand-blue);">{{in_progress|length}}</span>
+        </div>
+        <div class="kanban-tasks" id="col-IN_PROGRESS" data-status="IN_PROGRESS">
+            {% for t in in_progress %}
+            <div class="kanban-card" data-id="{{t.id}}" style="animation-delay: {{ loop.index0 * 0.03 }}s;">
+                <div class="fw-bold mb-1">{{t.title}}</div>
+                {% if t.priority == 'HIGH' %}<span class="badge bg-danger mb-2"><i class="bi bi-arrow-up-circle-fill"></i> דחוף</span>{% endif %}
+                <div class="small text-muted">{{t.description|truncate(40) if t.description else ''}}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="kanban-col" style="--col-accent: #16a34a;">
+        <div class="kanban-col-header">
+            <span class="text-success"><i class="bi bi-check-circle-fill"></i> בוצע</span>
+            <span class="badge bg-success">{{done|length}}</span>
+        </div>
+        <div class="kanban-tasks" id="col-DONE" data-status="DONE">
+            {% for t in done %}
+            <div class="kanban-card" data-id="{{t.id}}" style="opacity: 0.7; animation-delay: {{ loop.index0 * 0.03 }}s;">
+                <div class="fw-bold text-decoration-line-through mb-1">{{t.title}}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<script>
+    const columns = ['col-TODO', 'col-IN_PROGRESS', 'col-DONE'];
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+    columns.forEach(colId => {
+        const el = document.getElementById(colId);
+        new Sortable(el, {
+            group: 'kanban', 
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            onEnd: function (evt) {
+                const itemEl = evt.item;  
+                const toEl = evt.to;      
+                
+                const taskId = itemEl.getAttribute('data-id');
+                const newStatus = toEl.getAttribute('data-status');
+                const oldStatus = evt.from.getAttribute('data-status');
+
+                if (newStatus !== oldStatus) {
+                    fetch(`/update_status/${taskId}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                        body: JSON.stringify({ status: newStatus })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if(data.success) {
+                            if(newStatus === 'DONE') {
+                                createToast('כל הכבוד! משימה הושלמה 🎉', 'confetti');
+                                if(typeof confetti !== 'undefined') {
+                                    confetti({particleCount: 150, spread: 80, origin: { y: 0.6 }});
+                                }
+                                itemEl.style.opacity = '0.7';
+                                itemEl.querySelector('.fw-bold').classList.add('text-decoration-line-through');
+                            } else {
+                                itemEl.style.opacity = '1';
+                                itemEl.querySelector('.fw-bold').classList.remove('text-decoration-line-through');
+                            }
+                        } else {
+                            // אין הרשאה / כשל בשרת - מחזירים את הכרטיס לעמודה המקורית
+                            evt.from.appendChild(itemEl);
+                            createToast('אין לך הרשאה לעדכן משימה זו', 'danger');
+                        }
+                    })
+                    .catch(error => {
+                        evt.from.appendChild(itemEl);
+                        createToast('שגיאה בעדכון הסטטוס', 'danger');
+                    });
+                }
+            }
+        });
+    });
+</script>
+
+{% endblock %}

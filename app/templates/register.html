@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="row justify-content-center align-items-center" style="min-height: 75vh;">
+    <div class="col-md-4">
+        <div class="card-modern shadow p-4 text-center" style="border-top: 4px solid var(--brand-blue); animation: fadeInUp 0.5s var(--ease);">
+
+            <div class="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle"
+                 style="width: 56px; height: 56px; background: var(--brand-blue-light);">
+                <i class="bi bi-person-plus-fill fs-4" style="color: var(--brand-blue);"></i>
+            </div>
+
+            <h4 class="fw-bold mb-1">הרשמה ופתיחת חשבון</h4>
+            <p class="text-muted small mb-4">הצטרף אלינו ונהל את המשימות שלך בצורה חכמה</p>
+
+            <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="input-group mb-3">
+                    <span class="input-group-text bg-white"><i class="bi bi-person text-muted"></i></span>
+                    <input type="text" name="username" class="form-control" placeholder="שם משתמש מלא" required autocomplete="username">
+                </div>
+                <div class="input-group mb-3">
+                    <span class="input-group-text bg-white"><i class="bi bi-envelope text-muted"></i></span>
+                    <input type="email" name="email" class="form-control" placeholder="כתובת אימייל (אופציונלי)" autocomplete="email">
+                </div>
+                <div class="input-group mb-3">
+                    <span class="input-group-text bg-white"><i class="bi bi-whatsapp text-muted"></i></span>
+                    <input type="tel" name="phone" class="form-control" placeholder="טלפון לוואטסאפ (אופציונלי, ל-SOS)" autocomplete="tel">
+                </div>
+                <div class="input-group mb-4">
+                    <span class="input-group-text bg-white"><i class="bi bi-lock text-muted"></i></span>
+                    <input type="password" name="password" class="form-control" placeholder="בחר סיסמה מאובטחת" required autocomplete="new-password">
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 py-2 mb-3 fw-semibold">
+                    <i class="bi bi-check2-circle"></i> צור חשבון חדש
+                </button>
+            </form>
+
+            <div class="small text-muted border-top pt-3 mt-2">
+                כבר רשום במערכת? <a href="/login" class="text-primary text-decoration-none fw-semibold">לחץ כאן להתחברות</a>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+{% endblock %}

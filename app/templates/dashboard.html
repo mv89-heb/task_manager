@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="card-modern p-3 shadow-sm mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="m-0 fw-bold"><i class="bi bi-speedometer2 text-primary"></i> התקדמות כללית</h6>
+        <span class="badge" style="background: var(--brand-blue);">{{completion_percent}}%</span>
+    </div>
+    <div class="progress" style="height: 10px;">
+        <div class="progress-bar" role="progressbar" style="width: {{completion_percent}}%; background: var(--brand-blue);"></div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card-modern p-4 shadow-sm text-center border-bottom border-primary border-4 stat-card" style="animation-delay: 0.03s;">
+            <i class="bi bi-list-check fs-3 text-primary mb-2 d-block"></i>
+            <h6 class="text-muted mb-2">סה"כ משימות</h6>
+            <h2 class="mb-0 fw-bold">{{total}}</h2>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card-modern p-4 shadow-sm text-center border-bottom border-success border-4 stat-card" style="animation-delay: 0.09s;">
+            <i class="bi bi-check-circle fs-3 text-success mb-2 d-block"></i>
+            <h6 class="text-muted mb-2">הושלמו</h6>
+            <h2 class="mb-0 fw-bold text-success">{{done}}</h2>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card-modern p-4 shadow-sm text-center border-bottom border-danger border-4 stat-card" style="animation-delay: 0.15s;">
+            <i class="bi bi-exclamation-triangle fs-3 text-danger mb-2 d-block"></i>
+            <h6 class="text-muted mb-2">עדיפות גבוהה (פתוח)</h6>
+            <h2 class="mb-0 fw-bold text-danger">{{high_priority}}</h2>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card-modern p-4 shadow-sm text-center border-bottom border-warning border-4 stat-card" style="animation-delay: 0.21s;">
+            <i class="bi bi-hourglass-split fs-3 text-warning mb-2 d-block"></i>
+            <h6 class="text-muted mb-2">באיחור</h6>
+            <h2 class="mb-0 fw-bold text-warning">{{overdue_count}}</h2>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-5">
+        <div class="card-modern p-4 shadow-sm mb-4 d-flex flex-column align-items-center">
+            <h6 class="mb-3 w-100 border-bottom pb-2"><i class="bi bi-pie-chart text-primary"></i> התקדמות משימות</h6>
+            <div style="width: 200px; height: 200px;">
+                <canvas id="statusChart"></canvas>
+            </div>
+        </div>
+        <div class="card-modern p-4 shadow-sm d-flex flex-column align-items-center">
+            <h6 class="mb-3 w-100 border-bottom pb-2"><i class="bi bi-bar-chart text-primary"></i> התפלגות עדיפויות</h6>
+            <div style="width: 200px; height: 200px;">
+                <canvas id="priorityChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-7">
+        
+        <div class="card-modern shadow-sm mb-4">
+            <div class="p-3 border-bottom rounded-top d-flex justify-content-between align-items-center" style="background: var(--bs-tertiary-bg);">
+                <h6 class="m-0 fw-bold"><i class="bi bi-calendar-day text-primary"></i> משימות להיום</h6>
+                <span class="badge bg-info text-dark">{{today_tasks|length}}</span>
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for t in today_tasks %}
+                <li class="list-group-item d-flex justify-content-between align-items-center p-3">
+                    <div>
+                        <div class="fw-bold">{{t.title}}</div>
+                        <div class="small text-muted">{{t.description|truncate(40) if t.description else 'ללא תיאור'}}</div>
+                    </div>
+                    <div class="d-flex gap-1">
+                        {% if current_user.role in ['admin', 'manager'] and t.assignee and t.assignee.id != current_user.id %}
+                            {% set wa_link = t.assignee.whatsapp_link('תזכורת: המשימה "' + t.title + '" מתוכננת להיום') %}
+                            {% if wa_link %}
+                            <a href="{{ wa_link }}" target="_blank" class="btn btn-sm btn-outline-success" title="שלח תזכורת בוואטסאפ ל-{{ t.assignee.username }}">
+                                <i class="bi bi-whatsapp"></i>
+                            </a>
+                            {% endif %}
+                        {% endif %}
+                        <a href="/done/{{t.id}}" class="btn btn-sm btn-outline-success">סמן כבוצע</a>
+                    </div>
+                </li>
+                {% else %}
+                <li class="list-group-item text-center text-muted p-4">אין משימות שמועד הסיום שלהן הוא היום.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="card-modern shadow-sm">
+            <div class="p-3 border-bottom rounded-top d-flex justify-content-between align-items-center" style="background: var(--bs-tertiary-bg);">
+                <h6 class="m-0 fw-bold text-danger"><i class="bi bi-exclamation-octagon"></i> לטיפול דחוף (איחורים / עדיפות גבוהה)</h6>
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for t in urgent_list %}
+                <li class="list-group-item d-flex justify-content-between align-items-center p-3">
+                    <div>
+                        <div class="fw-bold">{{t.title}}</div>
+                        <div class="small text-danger">
+                            {% if t.priority == "HIGH" %} עדיפות גבוהה | {% endif %}
+                            {% if t.due_date %} יעד: {{t.due_date.strftime('%d/%m/%Y')}} {% endif %}
+                        </div>
+                    </div>
+                    <a href="/edit/{{t.id}}" class="btn btn-sm btn-light border">צפה</a>
+                </li>
+                {% else %}
+                <li class="list-group-item text-center text-muted p-4">איזה יופי! אין משימות דחופות או באיחור.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+    </div>
+</div>
+
+{% if current_user.role == 'admin' %}
+<div class="card-modern shadow-sm mt-4">
+    <div class="p-3 border-bottom rounded-top d-flex justify-content-between align-items-center" style="background: var(--bs-tertiary-bg);">
+        <h6 class="m-0 fw-bold"><i class="bi bi-building text-primary"></i> ביצועים לפי מחלקה</h6>
+        <a href="/admin/departments" class="btn btn-sm btn-outline-secondary">ניהול מחלקות</a>
+    </div>
+
+    {% if department_stats %}
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead class="table-light small text-muted">
+                <tr>
+                    <th class="ps-4">מחלקה</th>
+                    <th>חברי צוות</th>
+                    <th>משימות פתוחות</th>
+                    <th>הושלמו</th>
+                    <th style="min-width: 160px;">אחוז השלמה</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in department_stats %}
+                <tr>
+                    <td class="ps-4 fw-bold">{{ d.name }}</td>
+                    <td><span class="badge bg-info text-dark">{{ d.member_count }}</span></td>
+                    <td>{{ d.open }}</td>
+                    <td class="text-success fw-semibold">{{ d.done }}</td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="progress flex-grow-1" style="height: 8px;">
+                                <div class="progress-bar" style="width: {{ d.completion_percent }}%; background: var(--brand-blue);"></div>
+                            </div>
+                            <span class="small text-muted">{{ d.completion_percent }}%</span>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center text-muted py-4">
+        עדיין לא הוגדרו מחלקות. <a href="/admin/departments">צור מחלקה ראשונה</a> כדי לראות כאן פירוט ביצועים.
+    </div>
+    {% endif %}
+
+    {% if unassigned_dept_count > 0 %}
+    <div class="p-3 border-top bg-light small text-muted">
+        <i class="bi bi-exclamation-triangle text-warning"></i> {{ unassigned_dept_count }} משימות שייכות למשתמשים שעדיין לא משויכים לאף מחלקה.
+        <a href="/admin">שייך אותם דרך פאנל הניהול</a>.
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    let statusChartInstance, priorityChartInstance;
+
+    function getChartTextColor() {
+        return document.documentElement.getAttribute('data-bs-theme') === 'dark' ? '#e2e8f0' : '#334155';
+    }
+
+    function renderDashboardCharts() {
+        const textColor = getChartTextColor();
+
+        if (statusChartInstance) statusChartInstance.destroy();
+        if (priorityChartInstance) priorityChartInstance.destroy();
+
+        statusChartInstance = new Chart(document.getElementById("statusChart"), {
+            type: 'doughnut',
+            data: {
+                labels: ['פתוחות', 'הושלמו'],
+                datasets: [{ data: [{{open_count}}, {{done}}], backgroundColor: ['#94a3b8', '#16a34a'], borderWidth: 0 }]
+            },
+            options: {
+                cutout: '75%',
+                plugins: { legend: { position: 'bottom', labels: { color: textColor } } }
+            }
+        });
+
+        priorityChartInstance = new Chart(document.getElementById("priorityChart"), {
+            type: 'doughnut',
+            data: {
+                labels: ['גבוהה', 'בינונית', 'נמוכה'],
+                datasets: [{ data: [{{high_priority}}, {{medium_priority}}, {{low_priority}}], backgroundColor: ['#dc2626', '#d97706', '#2454d6'], borderWidth: 0 }]
+            },
+            options: {
+                cutout: '75%',
+                plugins: { legend: { position: 'bottom', labels: { color: textColor } } }
+            }
+        });
+    }
+
+    renderDashboardCharts();
+    window.addEventListener('themeChanged', renderDashboardCharts);
+</script>
+
+{% endblock %}

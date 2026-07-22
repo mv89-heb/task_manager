@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="m-0 fw-bold" style="color: var(--brand-navy);"><i class="bi bi-file-earmark-ruled text-primary"></i> תבניות משימות</h4>
+    <a href="/" class="btn btn-outline-secondary fw-semibold"><i class="bi bi-arrow-right"></i> חזרה למשימות</a>
+</div>
+
+<div class="row">
+    <div class="col-md-5 mb-4">
+        <div class="card-modern shadow-sm p-4" style="border-top: 3px solid var(--brand-blue);">
+            <h6 class="fw-bold mb-3"><i class="bi bi-plus-circle text-primary"></i> תבנית חדשה</h6>
+            <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="mb-3">
+                    <label class="form-label text-muted small">שם התבנית (לזיהוי ברשימה)</label>
+                    <input type="text" name="name" class="form-control" placeholder="לדוגמה: טיפול מונע מזגן" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-muted small">כותרת המשימה שתיווצר</label>
+                    <input type="text" name="title" class="form-control" placeholder="לדוגמה: טיפול מונע במזגן - קומה 2" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-muted small">תיאור (אופציונלי)</label>
+                    <textarea name="description" class="form-control" rows="2"></textarea>
+                </div>
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <label class="form-label text-muted small">עדיפות</label>
+                        <select name="priority" class="form-select">
+                            <option value="LOW">נמוכה</option>
+                            <option value="MEDIUM">בינונית</option>
+                            <option value="HIGH">גבוהה</option>
+                        </select>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="form-label text-muted small">חזרתיות מומלצת</label>
+                        <select name="recurrence" class="form-select">
+                            <option value="NONE">חד פעמית</option>
+                            <option value="DAILY">כל יום</option>
+                            <option value="WEEKLY">כל שבוע</option>
+                            <option value="MONTHLY">כל חודש</option>
+                        </select>
+                    </div>
+                </div>
+                {% if current_user.role == 'admin' %}
+                <div class="mb-3">
+                    <label class="form-label text-muted small">מחלקה (אופציונלי)</label>
+                    <select name="department_id" class="form-select">
+                        <option value="">— כלל הארגון —</option>
+                        {% for d in departments %}
+                            <option value="{{ d.id }}">{{ d.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                <button type="submit" class="btn btn-primary fw-semibold w-100"><i class="bi bi-check2"></i> צור תבנית</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-md-7">
+        <div class="card-modern shadow-sm p-0">
+            <div class="p-3 border-bottom">
+                <h6 class="m-0 fw-bold">תבניות קיימות</h6>
+            </div>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0 table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>שם</th>
+                            <th>כותרת משימה</th>
+                            <th>חזרתיות</th>
+                            <th class="text-end">פעולות</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for t in templates %}
+                        <tr style="animation: fadeIn 0.3s var(--ease) backwards; animation-delay: {{ loop.index0 * 0.04 }}s;">
+                            <td class="fw-bold">{{ t.name }}</td>
+                            <td class="small text-muted">{{ t.title }}</td>
+                            <td><span class="badge bg-light text-dark border">{{ {'NONE': 'חד פעמית', 'DAILY': 'כל יום', 'WEEKLY': 'כל שבוע', 'MONTHLY': 'כל חודש'}.get(t.recurrence, t.recurrence) }}</span></td>
+                            <td class="text-end">
+                                <form method="POST" action="/admin/templates/{{ t.id }}/delete" class="d-inline"
+                                      onsubmit="return confirm('למחוק את התבנית {{ t.name }}?')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="text-center text-muted py-4">עדיין לא הוגדרו תבניות.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

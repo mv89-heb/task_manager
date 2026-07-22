@@ -1,0 +1,655 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="fw-bold text-dark mb-1">
+            {% if current_user.role in ['admin', 'manager'] %}
+                <i class="bi bi-list-task text-primary"></i> כל המשימות בארגון
+            {% else %}
+                <i class="bi bi-person-check text-primary"></i> המשימות שלי
+            {% endif %}
+        </h3>
+        <p class="text-muted small m-0">ניהול, מעקב וסינון משימות מתקדם</p>
+    </div>
+
+    {% if current_user.role in ['admin', 'manager'] %}
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-primary fw-semibold shadow-sm" data-bs-toggle="modal" data-bs-target="#messageModal" onclick="openMessageModal()">
+            <i class="bi bi-send"></i> שלח הודעה לצוות
+        </button>
+        <button type="button" class="btn btn-primary fw-bold shadow-sm px-4" data-bs-toggle="modal" data-bs-target="#createTaskModal">
+            <i class="bi bi-plus-lg"></i> צור משימה חדשה
+        </button>
+    </div>
+    {% else %}
+    <span class="badge bg-light text-dark border px-3 py-2 fs-6 shadow-sm"><i class="bi bi-person-workspace"></i> סביבת עובד</span>
+    {% endif %}
+</div>
+
+<div class="card-modern shadow-sm border-0 mb-4 bg-white">
+    <form method="GET" action="/" class="p-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label small text-muted mb-1">חיפוש חופשי</label>
+                <input type="text" name="search" class="form-control" placeholder="חפש משימה..." value="{{ request.args.get('search', '') }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">סטטוס</label>
+                <select name="status" class="form-select">
+                    <option value="">הכל</option>
+                    <option value="TODO" {% if request.args.get('status') == 'TODO' %}selected{% endif %}>לביצוע</option>
+                    <option value="IN_PROGRESS" {% if request.args.get('status') == 'IN_PROGRESS' %}selected{% endif %}>בתהליך</option>
+                    <option value="DONE" {% if request.args.get('status') == 'DONE' %}selected{% endif %}>בוצע</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">עדיפות</label>
+                <select name="priority" class="form-select">
+                    <option value="">הכל</option>
+                    <option value="HIGH" {% if request.args.get('priority') == 'HIGH' %}selected{% endif %}>גבוהה</option>
+                    <option value="MEDIUM" {% if request.args.get('priority') == 'MEDIUM' %}selected{% endif %}>בינונית</option>
+                    <option value="LOW" {% if request.args.get('priority') == 'LOW' %}selected{% endif %}>נמוכה</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">מיון לפי</label>
+                <select name="sort" class="form-select">
+                    <option value="created_at" {% if request.args.get('sort') == 'created_at' %}selected{% endif %}>תאריך יצירה</option>
+                    <option value="due_date" {% if request.args.get('sort') == 'due_date' %}selected{% endif %}>תאריך יעד</option>
+                    <option value="priority" {% if request.args.get('sort') == 'priority' %}selected{% endif %}>עדיפות</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-primary w-100 fw-semibold"><i class="bi bi-search"></i> סנן</button>
+                <a href="/" class="btn btn-light border text-muted px-3" title="נקה סינונים"><i class="bi bi-x-lg"></i></a>
+            </div>
+        </div>
+
+        <div class="mt-2 d-flex justify-content-between align-items-center">
+            <button class="btn btn-sm btn-link text-muted p-0" type="button" data-bs-toggle="collapse" data-bs-target="#advancedFilters">
+                <i class="bi bi-sliders"></i> סינון מתקדם
+            </button>
+            <div class="d-flex gap-2">
+                <a href="{{ url_for('tasks.export_excel', **request.args) }}" class="btn btn-sm btn-outline-success">
+                    <i class="bi bi-file-earmark-excel"></i> ייצוא Excel
+                </a>
+                <a href="{{ url_for('tasks.export_pdf', **request.args) }}" class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-file-earmark-pdf"></i> ייצוא PDF
+                </a>
+            </div>
+        </div>
+
+        <div class="collapse {% if request.args.get('assignee') or request.args.get('due_after') or request.args.get('due_before') or request.args.get('recurring_only') %}show{% endif %}" id="advancedFilters">
+            <div class="row g-2 align-items-end mt-2 pt-2 border-top">
+                {% if all_users %}
+                <div class="col-md-3">
+                    <label class="form-label small text-muted mb-1">אחראי</label>
+                    <select name="assignee" class="form-select">
+                        <option value="">הכל</option>
+                        {% for u in all_users %}
+                            <option value="{{ u.id }}" {% if request.args.get('assignee') == u.id|string %}selected{% endif %}>{{ u.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                <div class="col-md-2">
+                    <label class="form-label small text-muted mb-1">יעד מתאריך</label>
+                    <input type="date" name="due_after" class="form-control" value="{{ request.args.get('due_after', '') }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small text-muted mb-1">יעד עד תאריך</label>
+                    <input type="date" name="due_before" class="form-control" value="{{ request.args.get('due_before', '') }}">
+                </div>
+                <div class="col-md-3">
+                    <div class="form-check mt-4">
+                        <input type="checkbox" class="form-check-input" name="recurring_only" value="1" id="recurringOnly" {% if request.args.get('recurring_only') == '1' %}checked{% endif %}>
+                        <label class="form-check-label small" for="recurringOnly"><i class="bi bi-arrow-repeat"></i> משימות חוזרות בלבד</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+{% if current_user.role in ['admin', 'manager'] %}
+<div class="card-modern shadow-sm border-0 mb-2 py-2 px-3 d-none align-items-center justify-content-between" id="bulkActionBar" style="background: var(--brand-blue-light);">
+    <span class="small fw-semibold"><i class="bi bi-check2-square"></i> <span id="selectedCount">0</span> משימות נבחרו</span>
+    <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-primary" onclick="openMessageModal(true)"><i class="bi bi-send"></i> שלח הודעה על הנבחרות</button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="clearTaskSelection()">בטל בחירה</button>
+    </div>
+</div>
+{% endif %}
+
+<div class="card-modern shadow-sm border-0 bg-white">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" style="min-width: 800px;">
+            <thead class="table-light text-muted small text-uppercase">
+                <tr>
+                    {% if current_user.role in ['admin', 'manager'] %}
+                    <th class="ps-4" style="width: 36px;">
+                        <input type="checkbox" class="form-check-input" id="selectAllTasks" onchange="toggleAllTasks(this)">
+                    </th>
+                    {% endif %}
+                    <th class="{% if current_user.role not in ['admin', 'manager'] %}ps-4{% endif %}">סטטוס</th>
+                    <th>פרטי המשימה</th>
+                    <th>אחראי</th>
+                    <th>תאריך יעד</th>
+                    <th>עדיפות</th>
+                    <th class="text-end pe-4">פעולות</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for task in tasks %}
+                <tr>
+                    {% if current_user.role in ['admin', 'manager'] %}
+                    <td class="ps-4">
+                        <input type="checkbox" class="form-check-input task-select-checkbox" value="{{ task.id }}"
+                               data-title="{{ task.title }}" onchange="updateSelectionState()">
+                    </td>
+                    {% endif %}
+                    <td class="{% if current_user.role not in ['admin', 'manager'] %}ps-4{% endif %}" style="min-width: 130px;">
+                        {% set can_edit_this = current_user.role == 'admin' or (current_user.role == 'manager' and task.assigned_to_id in current_user.visible_user_ids()) or task.assigned_to_id == current_user.id %}
+                        {% if can_edit_this %}
+                            <select class="form-select form-select-sm status-select fw-semibold
+                                {% if task.status == 'DONE' %}text-success{% elif task.status == 'IN_PROGRESS' %}text-warning{% else %}text-secondary{% endif %}"
+                                data-task-id="{{ task.id }}" style="border-radius: 20px; font-size: 12px;">
+                                <option value="TODO" {% if task.status == 'TODO' or not task.status %}selected{% endif %}>📋 לביצוע</option>
+                                <option value="IN_PROGRESS" {% if task.status == 'IN_PROGRESS' %}selected{% endif %}>⏳ בתהליך</option>
+                                <option value="DONE" {% if task.status == 'DONE' %}selected{% endif %}>✔️ בוצע</option>
+                            </select>
+                        {% else %}
+                            {% if task.status == 'DONE' %}
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1"><i class="bi bi-check-circle-fill"></i> בוצע</span>
+                            {% elif task.status == 'IN_PROGRESS' %}
+                                <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 px-2 py-1"><i class="bi bi-hourglass-split"></i> בתהליך</span>
+                            {% else %}
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2 py-1"><i class="bi bi-circle"></i> לביצוע</span>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="fw-bold text-dark fs-6">
+                            {{ task.title }}
+                            {% if task.recurrence and task.recurrence != 'NONE' %}
+                                <span class="badge bg-light text-secondary border" title="משימה חוזרת"><i class="bi bi-arrow-repeat"></i></span>
+                            {% endif %}
+                            {% if task.image_data %}
+                                <span class="badge bg-light text-secondary border" title="יש תמונה מצורפת"><i class="bi bi-image"></i></span>
+                            {% endif %}
+                        </div>
+                        <div class="small text-muted text-truncate" style="max-width: 250px;" title="{{ task.description }}">
+                            {{ task.description or 'ללא תיאור' }}
+                        </div>
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width: 28px; height: 28px; font-size: 12px;">
+                                {% if task.assignee %}{{ task.assignee.username[:1]|upper }}{% else %}?{% endif %}
+                            </div>
+                            <span class="small fw-semibold text-dark">
+                                {% if task.assignee %}{{ task.assignee.username }}{% else %}לא שויך{% endif %}
+                            </span>
+                        </div>
+                    </td>
+                    <td>
+                        {% if task.due_date %}
+                            <span class="small fw-semibold {% if task.due_date < now_date and task.status != 'DONE' %}text-danger{% else %}text-secondary{% endif %}">
+                                📅 {{ task.due_date.strftime('%d/%m/%Y') }}
+                            </span>
+                        {% else %}
+                            <span class="small text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if task.priority == 'HIGH' %} 
+                            <span class="text-danger fw-bold small"><i class="bi bi-arrow-up-circle-fill"></i> גבוהה</span>
+                        {% elif task.priority == 'MEDIUM' %} 
+                            <span class="text-warning fw-bold small" style="color: #d97706 !important;"><i class="bi bi-dash-circle-fill"></i> בינונית</span>
+                        {% else %} 
+                            <span class="text-primary fw-bold small"><i class="bi bi-arrow-down-circle-fill"></i> נמוכה</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end pe-4">
+                        <div class="d-flex justify-content-end gap-1">
+                            {% if current_user.role in ['admin', 'manager'] %}
+                                <a href="/edit/{{ task.id }}" class="btn btn-sm btn-light border text-primary" title="ערוך משימה"><i class="bi bi-pencil"></i></a>
+                                <form method="POST" action="/delete/{{ task.id }}" class="d-inline" onsubmit="return confirm('למחוק את המשימה?')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-light border text-danger" title="מחק משימה"><i class="bi bi-trash"></i></button>
+                                </form>
+                            {% else %}
+                                <span class="badge bg-light text-secondary border mt-1"><i class="bi bi-eye"></i> קריאה בלבד</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center py-5">
+                        <div class="text-muted mb-2" style="font-size: 40px;">📝</div>
+                        <h5 class="fw-bold text-dark">אין משימות להצגה</h5>
+                        <p class="text-muted small">לא נמצאו משימות שתואמות לסינון שלך, או שהכל כבר בוצע!</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    {% if pagination.pages > 1 %}
+    <div class="p-3 border-top d-flex justify-content-center">
+        <ul class="pagination pagination-sm m-0">
+            {% for page_num in pagination.iter_pages() %}
+                {% if page_num %}
+                    <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('tasks.index', page=page_num, search=request.args.get('search'), status=request.args.get('status'), priority=request.args.get('priority'), sort=request.args.get('sort'), assignee=request.args.get('assignee'), due_after=request.args.get('due_after'), due_before=request.args.get('due_before'), recurring_only=request.args.get('recurring_only')) }}">{{ page_num }}</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                {% endif %}
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</div>
+
+{% if current_user.role in ['admin', 'manager'] %}
+<div class="modal fade" id="createTaskModal" tabindex="-1" aria-labelledby="createTaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-bottom-0 bg-light rounded-top-4">
+                <h5 class="modal-title fw-bold text-primary" id="createTaskModalLabel"><i class="bi bi-stars"></i> משימה חדשה</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="/">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-body p-4">
+                    {% if templates %}
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-muted"><i class="bi bi-file-earmark-ruled"></i> התחל מתבנית (אופציונלי)</label>
+                        <select id="templateSelect" class="form-select">
+                            <option value="">— ללא תבנית —</option>
+                            {% for t in templates %}
+                                <option value="{{ t.id }}"
+                                        data-title="{{ t.title }}"
+                                        data-description="{{ t.description or '' }}"
+                                        data-priority="{{ t.priority }}"
+                                        data-recurrence="{{ t.recurrence }}">
+                                    {{ t.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-muted">כותרת המשימה <span class="text-danger">*</span></label>
+                        <input type="text" name="title" id="taskTitleInput" class="form-control form-control-lg fs-6" placeholder="מה צריך לעשות?" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-muted">פירוט המשימה (אופציונלי)</label>
+                        <textarea name="description" id="taskDescInput" class="form-control" rows="3" placeholder="הוסף פרטים, קישורים או הנחיות לעובד..."></textarea>
+                    </div>
+                    
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-muted">תאריך יעד</label>
+                            <input type="date" name="due_date" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-muted">עדיפות</label>
+                            <select name="priority" id="taskPriorityInput" class="form-select">
+                                <option value="LOW">נמוכה</option>
+                                <option value="MEDIUM">בינונית</option>
+                                <option value="HIGH">גבוהה</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold small text-muted">הקצה לעובד</label>
+                        <select name="assigned_to_id" class="form-select form-select-lg fs-6">
+                            <option value="{{ current_user.id }}">שייך אליי ({{ current_user.username }})</option>
+                            {% for user in all_users %}
+                                {% if user.id != current_user.id %}
+                                    <option value="{{ user.id }}">שייך אל: {{ user.username }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold small text-muted">חזרתיות</label>
+                        <select name="recurrence" id="taskRecurrenceInput" class="form-select">
+                            <option value="NONE">חד פעמית</option>
+                            <option value="DAILY">כל יום</option>
+                            <option value="WEEKLY">כל שבוע</option>
+                            <option value="MONTHLY">כל חודש</option>
+                        </select>
+                        <div class="form-text">כשמשימה חוזרת תסומן כ"בוצע", תיווצר אוטומטית המשימה הבאה בתאריך המתאים.</div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0 bg-light rounded-bottom-4">
+                    <button type="button" class="btn btn-outline-secondary fw-bold px-4" data-bs-dismiss="modal">ביטול</button>
+                    <button type="submit" class="btn btn-primary fw-bold px-4">🚀 צור משימה</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if current_user.role in ['admin', 'manager'] %}
+<div class="modal fade" id="messageModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-bottom-0 bg-light rounded-top-4">
+                <h5 class="modal-title fw-bold text-primary"><i class="bi bi-send"></i> שליחת הודעה</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+
+                <ul class="nav nav-pills mb-3 small" id="recipientModeTabs">
+                    <li class="nav-item">
+                        <button type="button" class="nav-link active" data-mode="specific" onclick="setRecipientMode('specific', this)">משתמשים נבחרים</button>
+                    </li>
+                    {% if messaging_departments %}
+                    <li class="nav-item">
+                        <button type="button" class="nav-link" data-mode="department" onclick="setRecipientMode('department', this)">מחלקה שלמה</button>
+                    </li>
+                    {% endif %}
+                    {% if current_user.role == 'admin' %}
+                    <li class="nav-item">
+                        <button type="button" class="nav-link" data-mode="org" onclick="setRecipientMode('org', this)">כל הארגון</button>
+                    </li>
+                    {% endif %}
+                </ul>
+
+                <div id="departmentPickerRow" class="mb-3 d-none">
+                    <label class="form-label small text-muted">בחר מחלקה</label>
+                    <select id="departmentPicker" class="form-select" onchange="renderRecipientCheckboxes()">
+                        {% for d in messaging_departments %}
+                            <option value="{{ d.id }}">{{ d.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label small text-muted m-0">נמענים <span id="recipientHint" class="text-muted">(סמן/הסר סימון כדי להחריג)</span></label>
+                        <span class="small text-muted"><span id="recipientSelectedCount">0</span> נבחרו</span>
+                    </div>
+                    <div id="recipientCheckboxList" class="border rounded p-2" style="max-height: 180px; overflow-y: auto;"></div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small text-muted">תוכן ההודעה</label>
+                    <textarea id="messageBody" class="form-control" rows="4" placeholder="כתוב את ההודעה..."></textarea>
+                </div>
+
+                <div class="d-flex gap-3 mb-2">
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="channelEmail" checked>
+                        <label class="form-check-label small" for="channelEmail"><i class="bi bi-envelope"></i> מייל</label>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="channelWhatsapp" checked>
+                        <label class="form-check-label small" for="channelWhatsapp"><i class="bi bi-whatsapp"></i> וואטסאפ</label>
+                    </div>
+                </div>
+
+                <div id="messageResult"></div>
+            </div>
+            <div class="modal-footer border-top-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">ביטול</button>
+                <button type="button" class="btn btn-primary fw-semibold" id="sendMessageBtn"><i class="bi bi-send-fill"></i> שלח הודעה</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+    {% if current_user.role in ['admin', 'manager'] %}
+    const ALL_VISIBLE_USERS = [
+        {% for u in all_users %}
+        { id: {{ u.id }}, username: {{ u.username|tojson }}, departmentId: {{ u.department_id or 'null' }}, hasEmail: {{ (u.email is not none)|tojson }}, hasPhone: {{ (u.phone is not none)|tojson }} },
+        {% endfor %}
+    ];
+    {% endif %}
+</script>
+
+<script>
+    {% if current_user.role in ['admin', 'manager'] %}
+    let currentRecipientMode = 'specific';
+    let currentDepartmentId = null;
+
+    function updateSelectionState() {
+        const checked = document.querySelectorAll('.task-select-checkbox:checked');
+        const bar = document.getElementById('bulkActionBar');
+        document.getElementById('selectedCount').textContent = checked.length;
+        bar.classList.toggle('d-none', checked.length === 0);
+        bar.classList.toggle('d-flex', checked.length > 0);
+    }
+
+    function toggleAllTasks(checkbox) {
+        document.querySelectorAll('.task-select-checkbox').forEach(cb => cb.checked = checkbox.checked);
+        updateSelectionState();
+    }
+
+    function clearTaskSelection() {
+        document.querySelectorAll('.task-select-checkbox').forEach(cb => cb.checked = false);
+        document.getElementById('selectAllTasks').checked = false;
+        updateSelectionState();
+    }
+
+    function getSelectedTaskTitles() {
+        return Array.from(document.querySelectorAll('.task-select-checkbox:checked')).map(cb => cb.getAttribute('data-title'));
+    }
+
+    function setRecipientMode(mode, btnEl) {
+        currentRecipientMode = mode;
+        document.querySelectorAll('#recipientModeTabs .nav-link').forEach(b => b.classList.remove('active'));
+        btnEl.classList.add('active');
+        document.getElementById('departmentPickerRow').classList.toggle('d-none', mode !== 'department');
+        if (mode === 'department') {
+            currentDepartmentId = parseInt(document.getElementById('departmentPicker').value);
+        }
+        renderRecipientCheckboxes();
+    }
+
+    function renderRecipientCheckboxes() {
+        const listEl = document.getElementById('recipientCheckboxList');
+        const hintEl = document.getElementById('recipientHint');
+        let pool = ALL_VISIBLE_USERS;
+        let defaultChecked = false;
+
+        if (currentRecipientMode === 'department') {
+            currentDepartmentId = parseInt(document.getElementById('departmentPicker').value);
+            pool = ALL_VISIBLE_USERS.filter(u => u.departmentId === currentDepartmentId);
+            defaultChecked = true;
+            hintEl.textContent = '(כל המחלקה נבחרה - הסר סימון כדי להחריג)';
+        } else if (currentRecipientMode === 'org') {
+            pool = ALL_VISIBLE_USERS;
+            defaultChecked = true;
+            hintEl.textContent = '(כל הארגון נבחר - הסר סימון כדי להחריג)';
+        } else {
+            hintEl.textContent = '(סמן את מי שתרצה לשלוח אליו)';
+        }
+
+        if (!pool.length) {
+            listEl.innerHTML = '<div class="text-muted small p-2">אין משתמשים זמינים בקבוצה זו.</div>';
+        } else {
+            listEl.innerHTML = pool.map(u => `
+                <div class="form-check d-flex align-items-center justify-content-between">
+                    <span>
+                        <input type="checkbox" class="form-check-input recipient-checkbox" value="${u.id}" id="rcpt_${u.id}" ${defaultChecked ? 'checked' : ''} onchange="updateRecipientCount()">
+                        <label class="form-check-label" for="rcpt_${u.id}">${u.username}</label>
+                    </span>
+                    <span class="small text-muted">
+                        ${u.hasEmail ? '<i class="bi bi-envelope-check text-success" title="יש מייל"></i>' : '<i class="bi bi-envelope-slash text-muted" title="אין מייל"></i>'}
+                        ${u.hasPhone ? '<i class="bi bi-whatsapp text-success ms-1" title="יש טלפון"></i>' : '<i class="bi bi-whatsapp text-muted ms-1" title="אין טלפון"></i>'}
+                    </span>
+                </div>
+            `).join('');
+        }
+        updateRecipientCount();
+    }
+
+    function updateRecipientCount() {
+        document.getElementById('recipientSelectedCount').textContent = document.querySelectorAll('.recipient-checkbox:checked').length;
+    }
+
+    function openMessageModal(fromSelection) {
+        document.getElementById('messageResult').innerHTML = '';
+        setRecipientMode('specific', document.querySelector('#recipientModeTabs .nav-link'));
+
+        if (fromSelection) {
+            const titles = getSelectedTaskTitles();
+            if (titles.length) {
+                document.getElementById('messageBody').value = 'לגבי המשימות:\n' + titles.map(t => '- ' + t).join('\n') + '\n\n';
+            }
+        } else {
+            document.getElementById('messageBody').value = '';
+        }
+
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('messageModal'));
+        modal.show();
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const sendBtn = document.getElementById('sendMessageBtn');
+        if (sendBtn) {
+            sendBtn.addEventListener('click', function () {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                const recipientIds = Array.from(document.querySelectorAll('.recipient-checkbox:checked')).map(cb => cb.value);
+                const message = document.getElementById('messageBody').value.trim();
+                const resultBox = document.getElementById('messageResult');
+
+                if (!recipientIds.length) {
+                    resultBox.innerHTML = '<div class="alert alert-danger small mb-0">יש לבחור לפחות נמען אחד.</div>';
+                    return;
+                }
+                if (!message) {
+                    resultBox.innerHTML = '<div class="alert alert-danger small mb-0">יש להזין תוכן להודעה.</div>';
+                    return;
+                }
+
+                const formData = new FormData();
+                recipientIds.forEach(id => formData.append('recipient_ids', id));
+                formData.append('message', message);
+                formData.append('send_email', document.getElementById('channelEmail').checked ? '1' : '0');
+                formData.append('send_whatsapp', document.getElementById('channelWhatsapp').checked ? '1' : '0');
+                formData.append('csrf_token', csrfToken);
+
+                sendBtn.disabled = true;
+                sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> שולח...';
+
+                fetch('/send_bulk_message', { method: 'POST', body: formData, headers: { 'X-CSRFToken': csrfToken } })
+                    .then(r => r.json())
+                    .then(data => {
+                        sendBtn.disabled = false;
+                        sendBtn.innerHTML = '<i class="bi bi-send-fill"></i> שלח הודעה';
+
+                        if (!data.success) {
+                            resultBox.innerHTML = `<div class="alert alert-danger small mb-0">${data.message}</div>`;
+                            return;
+                        }
+
+                        let html = `<div class="alert alert-success small">ההודעה נשלחה ל-${data.notified_count} משתמשים (התראה פנימית).</div>`;
+                        if (data.email_sent_to.length) {
+                            html += `<div class="small text-muted mb-2"><i class="bi bi-envelope-check"></i> נשלח מייל ל: ${data.email_sent_to.join(', ')}</div>`;
+                        }
+                        if (data.email_failed_to && data.email_failed_to.length) {
+                            html += `<div class="small text-danger mb-2"><i class="bi bi-envelope-exclamation"></i> שליחת מייל נכשלה ל: ${data.email_failed_to.join(', ')} (בדוק הגדרות SMTP ב-Render)</div>`;
+                        }
+                        if (data.whatsapp_targets.length) {
+                            html += `<div class="small text-muted mb-2">לחץ כדי לשלוח גם בוואטסאפ:</div>`;
+                            data.whatsapp_targets.forEach(t => {
+                                html += `<a href="${t.link}" target="_blank" class="btn btn-sm btn-success mb-1 me-1"><i class="bi bi-whatsapp"></i> ${t.name}</a>`;
+                            });
+                        }
+                        resultBox.innerHTML = html;
+                        if (typeof createToast === 'function') createToast('ההודעה נשלחה בהצלחה', 'success');
+                    })
+                    .catch(() => {
+                        sendBtn.disabled = false;
+                        sendBtn.innerHTML = '<i class="bi bi-send-fill"></i> שלח הודעה';
+                        resultBox.innerHTML = '<div class="alert alert-danger small mb-0">שגיאה בשליחה, נסה שוב.</div>';
+                    });
+            });
+        }
+    });
+    {% endif %}
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+    const templateSelect = document.getElementById('templateSelect');
+    if (templateSelect) {
+        templateSelect.addEventListener('change', function () {
+            const opt = templateSelect.options[templateSelect.selectedIndex];
+            if (!opt.value) return;
+            document.getElementById('taskTitleInput').value = opt.getAttribute('data-title') || '';
+            document.getElementById('taskDescInput').value = opt.getAttribute('data-description') || '';
+            document.getElementById('taskPriorityInput').value = opt.getAttribute('data-priority') || 'LOW';
+            document.getElementById('taskRecurrenceInput').value = opt.getAttribute('data-recurrence') || 'NONE';
+        });
+    }
+
+    document.querySelectorAll('.status-select').forEach(function (select) {
+        const originalValue = select.value;
+        select.addEventListener('change', function () {
+            const taskId = select.getAttribute('data-task-id');
+            const newStatus = select.value;
+
+            fetch(`/update_status/${taskId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ status: newStatus })
+            })
+            .then(function (response) { return response.json(); })
+            .then(function (data) {
+                if (data.success) {
+                    select.classList.remove('text-success', 'text-warning', 'text-secondary');
+                    if (newStatus === 'DONE') {
+                        select.classList.add('text-success');
+                        if (typeof confetti !== 'undefined') {
+                            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+                        }
+                    } else if (newStatus === 'IN_PROGRESS') {
+                        select.classList.add('text-warning');
+                    } else {
+                        select.classList.add('text-secondary');
+                    }
+                    if (typeof createToast === 'function') {
+                        createToast('הסטטוס עודכן בהצלחה', 'success');
+                    }
+                } else {
+                    select.value = originalValue;
+                    if (typeof createToast === 'function') {
+                        createToast('אין לך הרשאה לעדכן משימה זו', 'danger');
+                    } else {
+                        alert('אין לך הרשאה לעדכן משימה זו');
+                    }
+                }
+            })
+            .catch(function () {
+                select.value = originalValue;
+                if (typeof createToast === 'function') {
+                    createToast('שגיאה בעדכון הסטטוס', 'danger');
+                } else {
+                    alert('שגיאה בעדכון הסטטוס');
+                }
+            });
+        });
+    });
+});
+</script>
+
+{% endblock %}

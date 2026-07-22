@@ -1,0 +1,13 @@
+Flask
+Flask-SQLAlchemy
+Flask-Login
+Flask-WTF
+Flask-Limiter
+bcrypt
+gunicorn
+psycopg2-binary
+Flask-Mail==0.9.1
+itsdangerous==2.1.2
+openpyxl
+reportlab
+python-bidi

@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="row justify-content-center">
+<div class="col-md-7">
+
+<div class="card-modern p-4 shadow-sm mb-4" style="border-top: 3px solid var(--brand-blue); animation: fadeInUp 0.35s var(--ease);">
+
+<h5 class="mb-4"><i class="bi bi-pencil-square text-primary"></i> עריכת משימה</h5>
+
+<form method="POST" enctype="multipart/form-data">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+<label class="form-label small text-muted">שם המשימה:</label>
+<input name="title" class="form-control mb-3" value="{{task.title}}" required>
+
+<label class="form-label small text-muted">פירוט המשימה:</label>
+<textarea name="description" class="form-control mb-3" rows="4">{{task.description or ''}}</textarea>
+
+<div class="row">
+    <div class="col-md-4 mb-3">
+        <label class="form-label small text-muted">סטטוס:</label>
+        <select name="status" class="form-select">
+            <option value="TODO" {% if task.status=="TODO" or not task.status %}selected{% endif %}>לביצוע</option>
+            <option value="IN_PROGRESS" {% if task.status=="IN_PROGRESS" %}selected{% endif %}>בתהליך</option>
+            <option value="DONE" {% if task.status=="DONE" %}selected{% endif %}>בוצע</option>
+        </select>
+    </div>
+    <div class="col-md-4 mb-3">
+        <label class="form-label small text-muted">עדיפות:</label>
+        <select name="priority" class="form-select">
+            <option value="LOW" {% if task.priority=="LOW" %}selected{% endif %}>נמוכה</option>
+            <option value="MEDIUM" {% if task.priority=="MEDIUM" %}selected{% endif %}>בינונית</option>
+            <option value="HIGH" {% if task.priority=="HIGH" %}selected{% endif %}>גבוהה</option>
+        </select>
+    </div>
+    <div class="col-md-4 mb-3">
+        <label class="form-label small text-muted"><i class="bi bi-arrow-repeat"></i> חזרתיות:</label>
+        <select name="recurrence" class="form-select">
+            <option value="NONE" {% if not task.recurrence or task.recurrence=="NONE" %}selected{% endif %}>חד פעמית</option>
+            <option value="DAILY" {% if task.recurrence=="DAILY" %}selected{% endif %}>כל יום</option>
+            <option value="WEEKLY" {% if task.recurrence=="WEEKLY" %}selected{% endif %}>כל שבוע</option>
+            <option value="MONTHLY" {% if task.recurrence=="MONTHLY" %}selected{% endif %}>כל חודש</option>
+        </select>
+    </div>
+</div>
+
+<label class="form-label small text-muted"><i class="bi bi-calendar-event"></i> תאריך יעד:</label>
+<input type="date" name="due_date" class="form-control mb-3" value="{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '' }}">
+
+<label class="form-label small text-muted"><i class="bi bi-person-check"></i> אחראי (הקצאה):</label>
+<select name="assigned_to_id" class="form-select mb-3">
+    {% for u in assignable_users %}
+        <option value="{{ u.id }}" {% if task.assigned_to_id == u.id %}selected{% endif %}>
+            {{ u.username }}{% if u.id == task.assigned_to_id %} (נוכחי){% endif %}
+        </option>
+    {% endfor %}
+</select>
+
+<label class="form-label small text-muted"><i class="bi bi-image"></i> תמונה מצורפת (עד 2MB, JPEG/PNG/WEBP/GIF):</label>
+{% if task.image_data %}
+    <div class="mb-2">
+        <img src="data:{{ task.image_mimetype }};base64,{{ task.image_data }}" class="img-fluid rounded border mb-2" style="max-height: 220px;">
+        <div class="form-check">
+            <input type="checkbox" class="form-check-input" name="remove_image" value="1" id="removeImage">
+            <label class="form-check-label small text-danger" for="removeImage">הסר את התמונה הקיימת</label>
+        </div>
+    </div>
+{% endif %}
+<input type="file" name="image" accept="image/jpeg,image/png,image/webp,image/gif" class="form-control mb-4">
+
+<button class="btn btn-primary w-100 fw-semibold"><i class="bi bi-check2"></i> שמור שינויים</button>
+<a href="/" class="btn btn-link w-100 mt-2 text-muted">ביטול וחזרה</a>
+
+</form>
+
+</div>
+
+<div class="card-modern p-4 shadow-sm mb-4">
+    <h6 class="fw-bold mb-3"><i class="bi bi-chat-left-text text-primary"></i> תגובות ועדכונים</h6>
+
+    {% for c in comments %}
+    <div class="d-flex gap-2 mb-3" style="animation: fadeIn 0.3s var(--ease) backwards; animation-delay: {{ loop.index0 * 0.05 }}s;">
+        <div class="text-white rounded-circle d-flex align-items-center justify-content-center fw-bold flex-shrink-0" style="width: 32px; height: 32px; font-size: 13px; background: var(--brand-blue);">
+            {{ c.author.username[:1]|upper if c.author else '?' }}
+        </div>
+        <div class="flex-grow-1">
+            <div class="d-flex justify-content-between">
+                <span class="fw-semibold small">{{ c.author.username if c.author else 'משתמש שנמחק' }}</span>
+                <span class="text-muted small">{{ c.created_at.strftime('%d/%m/%Y %H:%M') if c.created_at else '' }}</span>
+            </div>
+            <div class="small">{{ c.body }}</div>
+        </div>
+    </div>
+    {% else %}
+    <p class="text-muted small"><i class="bi bi-chat-square"></i> אין תגובות עדיין.</p>
+    {% endfor %}
+
+    <form method="POST" action="/task/{{ task.id }}/comment" class="mt-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="input-group">
+            <input type="text" name="body" class="form-control" placeholder="הוסף תגובה..." required maxlength="1000">
+            <button type="submit" class="btn btn-outline-primary"><i class="bi bi-send"></i> שלח</button>
+        </div>
+    </form>
+</div>
+
+</div>
+</div>
+
+{% endblock %}

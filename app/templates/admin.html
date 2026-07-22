@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="m-0 fw-bold" style="color: var(--brand-navy);">
+        {% if current_user.role == 'admin' %}
+            <i class="bi bi-shield-check text-primary"></i> פאנל ניהול מנהל מערכת
+        {% else %}
+            <i class="bi bi-people-fill text-primary"></i> ניהול צוות המחלקה שלי{% if current_user.department %}: {{ current_user.department.name }}{% endif %}
+        {% endif %}
+    </h4>
+    <div>
+        {% if current_user.role == 'admin' %}
+        <a href="/admin/departments" class="btn btn-outline-secondary fw-semibold me-2"><i class="bi bi-building"></i> ניהול מחלקות</a>
+        <button type="button" class="btn btn-outline-secondary fw-semibold me-2" id="mailStatusBtn"><i class="bi bi-info-circle"></i> סטטוס SMTP</button>
+        <button type="button" class="btn btn-outline-secondary fw-semibold me-2" id="testEmailBtn"><i class="bi bi-envelope-check"></i> בדוק הגדרות מייל</button>
+        {% endif %}
+        <a href="/admin/templates" class="btn btn-outline-secondary fw-semibold me-2"><i class="bi bi-file-earmark-ruled"></i> תבניות משימות</a>
+        <a href="/admin/user/new" class="btn btn-primary fw-semibold"><i class="bi bi-person-plus"></i> הוסף משתמש חדש</a>
+    </div>
+</div>
+
+{% if current_user.role == 'admin' %}
+<div id="testEmailResult" class="mb-3"></div>
+{% endif %}
+
+<div class="card-modern shadow-sm p-0">
+    <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
+        <h6 class="m-0 fw-bold"><i class="bi bi-people text-primary"></i> ניהול משתמשים</h6>
+        <span class="badge" style="background: var(--brand-blue);">{{ user_stats|length }} משתמשים מוצגים</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table align-middle mb-0 table-hover">
+            <thead class="table-light">
+                <tr>
+                    <th>מזהה (ID)</th>
+                    <th>שם משתמש</th>
+                    <th>כתובת אימייל</th>
+                    <th>תפקיד</th>
+                    <th>מחלקה</th>
+                    <th>משימות</th>
+                    <th class="text-end">פעולות ניהול</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stats in user_stats %}
+                <tr style="animation: fadeIn 0.3s var(--ease) backwards; animation-delay: {{ loop.index0 * 0.03 }}s;">
+                    <td><span class="badge bg-secondary">#{{ stats.user.id }}</span></td>
+                    <td class="fw-bold">
+                        {{ stats.user.username }}
+                        {% if stats.user.username == 'mv' %}
+                            <span class="badge bg-warning text-dark ms-2"><i class="bi bi-star-fill"></i> מנהל ראשי</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-muted">{{ stats.user.email }}</td>
+                    <td>
+                        {% if stats.user.role == 'admin' %}
+                            <span class="badge bg-warning text-dark"><i class="bi bi-shield-check"></i> {{ role_labels.get(stats.user.role, stats.user.role) }}</span>
+                        {% elif stats.user.role == 'manager' %}
+                            <span class="badge" style="background: var(--brand-blue);"><i class="bi bi-compass"></i> {{ role_labels.get(stats.user.role, stats.user.role) }}</span>
+                        {% else %}
+                            <span class="badge bg-light text-dark border"><i class="bi bi-person"></i> {{ role_labels.get(stats.user.role, stats.user.role) }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if stats.user.department %}
+                            <span class="badge bg-info text-dark">{{ stats.user.department.name }}</span>
+                        {% else %}
+                            <span class="text-muted small">—</span>
+                        {% endif %}
+                    </td>
+                    <td><span class="badge bg-light text-dark border">{{ stats.task_count }} משימות</span></td>
+                    <td class="text-end">
+                        <a href="/admin/user/{{ stats.user.id }}/edit" class="btn btn-sm btn-outline-primary fw-semibold"><i class="bi bi-pencil"></i> ערוך</a>
+
+                        {% if stats.user.username != 'mv' %}
+                            <form method="POST" action="/admin/delete_user/{{ stats.user.id }}" class="d-inline ms-1"
+                                  onsubmit="return confirm('האם אתה בטוח שברצונך למחוק את {{ stats.user.username }}? כל המשימות שלו יימחקו!')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i> מחק</button>
+                            </form>
+                        {% else %}
+                            <button class="btn btn-sm btn-outline-secondary ms-1" disabled title="מוגן ממחיקה"><i class="bi bi-trash"></i> מחק</button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if current_user.role == 'admin' %}
+<script>
+document.getElementById('mailStatusBtn').addEventListener('click', function () {
+    const btn = this;
+    const resultBox = document.getElementById('testEmailResult');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> בודק...';
+    resultBox.innerHTML = '';
+
+    fetch('/api/admin/mail/status')
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-info-circle"></i> סטטוס SMTP';
+            const cls = data.smtp_configured ? 'alert-success' : 'alert-warning';
+            resultBox.innerHTML = `<div class="alert ${cls} small">
+                <b>SMTP מוגדר:</b> ${data.smtp_configured ? 'כן ✓' : 'לא ✗'}<br>
+                <b>שרת:</b> ${data.server || '—'} | <b>פורט:</b> ${data.port || '—'}<br>
+                <b>שם משתמש מוגדר:</b> ${data.username_exists ? 'כן' : 'לא'}
+            </div>`;
+        })
+        .catch(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-info-circle"></i> סטטוס SMTP';
+            resultBox.innerHTML = '<div class="alert alert-danger small">שגיאה בבדיקת הסטטוס.</div>';
+        });
+});
+
+document.getElementById('testEmailBtn').addEventListener('click', function () {
+    const btn = this;
+    const resultBox = document.getElementById('testEmailResult');
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> בודק...';
+    resultBox.innerHTML = '';
+
+    fetch('/admin/test_email', { method: 'POST', headers: { 'X-CSRFToken': csrfToken } })
+        .then(r => r.text().then(text => {
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                throw new Error(`השרת החזיר תגובה לא צפויה (סטטוס ${r.status}): ${text.slice(0, 150)}`);
+            }
+            return data;
+        }))
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-envelope-check"></i> בדוק הגדרות מייל';
+            const cls = data.success ? 'alert-success' : 'alert-danger';
+            resultBox.innerHTML = `<div class="alert ${cls} small">${data.message}</div>`;
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-envelope-check"></i> בדוק הגדרות מייל';
+            resultBox.innerHTML = `<div class="alert alert-danger small">${err.message || 'שגיאה בבדיקה, נסה שוב.'}</div>`;
+        });
+});
+</script>
+{% endif %}
+
+{% endblock %}

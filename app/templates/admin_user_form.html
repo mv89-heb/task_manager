@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card-modern shadow-sm p-4" style="border-top: 3px solid var(--brand-blue); animation: fadeInUp 0.35s var(--ease);">
+
+            <h4 class="fw-bold mb-3">
+                {% if user %}
+                    <i class="bi bi-pencil-square text-primary"></i> עריכת משתמש: {{ user.username }}
+                {% else %}
+                    <i class="bi bi-person-plus text-primary"></i> יצירת משתמש חדש במערכת
+                {% endif %}
+            </h4>
+
+            <form method="POST">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="mb-3">
+                    <label class="form-label text-muted small">שם משתמש</label>
+                    <input type="text" name="username" class="form-control" value="{{ user.username if user else '' }}" required>
+                    {% if user and user.username == 'mv' %}
+                        <div class="form-text text-danger"><i class="bi bi-exclamation-circle"></i> אין לשנות שם משתמש זה כדי לא לאבד הרשאות מנהל.</div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label text-muted small">כתובת אימייל <span class="text-muted">(אופציונלי)</span></label>
+                    <input type="email" name="email" class="form-control" value="{{ user.email if user and user.email else '' }}">
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label text-muted small"><i class="bi bi-whatsapp"></i> טלפון לוואטסאפ <span class="text-muted">(אופציונלי, ל-SOS)</span></label>
+                    <input type="tel" name="phone" class="form-control" value="{{ user.phone if user and user.phone else '' }}" placeholder="05X-XXXXXXX">
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label text-muted small">תפקיד והרשאות מערכת</label>
+                    <select name="role" class="form-select" {% if user and user.username == 'mv' %}disabled{% endif %}>
+                        <option value="employee" {% if user and user.role == 'employee' %}selected{% endif %}>עובד - צפייה במשימות שלו בלבד</option>
+                        {% if current_user.role == 'admin' %}
+                        <option value="manager" {% if user and user.role == 'manager' %}selected{% endif %}>מנהל תחום - רואה ומנהל את המחלקה שלו</option>
+                        <option value="admin" {% if user and user.role == 'admin' %}selected{% endif %}>מנהל מערכת - רואה ומנהל הכל</option>
+                        {% endif %}
+                    </select>
+                    {% if user and user.username == 'mv' %}
+                        <input type="hidden" name="role" value="admin">
+                    {% endif %}
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label text-muted small">מחלקה / תחום</label>
+                    {% if current_user.role == 'manager' %}
+                        <input type="text" class="form-control" value="{{ current_user.department.name if current_user.department else '' }}" disabled>
+                        <div class="form-text">כמנהל תחום, אתה יכול להוסיף/לערוך משתמשים במחלקה שלך בלבד.</div>
+                    {% else %}
+                        <select name="department_id" class="form-select">
+                            <option value="">— ללא מחלקה —</option>
+                            {% for dept in departments %}
+                                <option value="{{ dept.id }}" {% if user and user.department_id == dept.id %}selected{% endif %}>{{ dept.name }}</option>
+                            {% endfor %}
+                        </select>
+                        {% if not departments %}
+                            <div class="form-text text-warning"><i class="bi bi-exclamation-triangle"></i> עדיין לא הוגדרו מחלקות. <a href="/admin/departments">צור מחלקה ראשונה</a>.</div>
+                        {% endif %}
+                    {% endif %}
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label text-muted small">מנהל ישיר (קו דיווח, אופציונלי)</label>
+                    <select name="manager_id" class="form-select">
+                        <option value="">— ללא —</option>
+                        {% for m in possible_managers %}
+                            {% if not user or m.id != user.id %}
+                            <option value="{{ m.id }}" {% if user and user.manager_id == m.id %}selected{% endif %}>{{ m.username }} ({{ role_labels.get(m.role, m.role) }})</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label text-muted small">
+                        סיסמה
+                        {% if user %} <span class="text-warning">(השאר ריק אם אינך רוצה לשנות)</span> {% endif %}
+                    </label>
+                    <input type="text" name="password" class="form-control" placeholder="{% if user %}הזן סיסמה חדשה...{% else %}הזן סיסמה התחלתית...{% endif %}" {% if not user %}required{% endif %}>
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <a href="/admin" class="btn btn-outline-secondary"><i class="bi bi-arrow-right"></i> ביטול וחזרה</a>
+                    <button type="submit" class="btn btn-primary fw-semibold">
+                        {% if user %} <i class="bi bi-check2"></i> שמור שינויים {% else %} <i class="bi bi-check2"></i> צור משתמש {% endif %}
+                    </button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+</div>
+
+{% endblock %}
