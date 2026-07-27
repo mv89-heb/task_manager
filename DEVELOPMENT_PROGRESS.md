@@ -149,7 +149,50 @@ Allowlist-only בכל שכבה: `VALID_TRIGGERS`, `VALID_FIELDS`, `VALID_OPERATO
 ### Known Issues
 - אין (הפער היחיד שנשאר מ-Phase 1 - `Query.get()` הישן - עדיין נדחה במכוון, סיכון נמוך)
 
-### Next Phase
-לפי ה-Roadmap: **Phase 3 — Advanced Task Management** (Dependencies, Checklists, Sub Tasks, Timeline).
-**לא הותחל** - עוצר לאישור לפי דרישת הפרוטוקול.
+---
 
+## Phase 3 — Advanced Task Management
+
+**Status:** ✅ Complete
+
+### מה בוצע
+הרחבת יכולות ניהול המשימות במערכת באמצעות 4 כלים מתקדמים ללא שבירת ארכיטקטורה קיימת וללא Over Engineering:
+1. **Checklists (רשימות תיוג):** הוספת מודל `TaskChecklistItem` וניהול דינמי ב-UI דרך קריאות AJAX אסינכרוניות (Fetch API) בעמוד עריכת המשימה.
+2. **Sub Tasks (תתי-משימות):** יישום עצמי על מודל ה-`Task` באמצעות Self-Referential Foreign Key (`parent_task_id`), המאפשר היררכיית אב-בן פשוטה.
+3. **Dependencies (תלויות מרובות):** יצירת טבלת קשר Many-to-Many (`task_dependencies`) ואכיפת תלות מסוג "Soft Block". סימון משימה כ-DONE כאשר התלויות שלה פתוחות מחזיר אזהרה (חיווי למשתמש), הניתנת לעקיפה באמצעות `force_complete=True`.
+4. **Estimated Minutes (זמן מוערך):** הוספת שדה להערכת זמן (בדקות) במודל המשימה.
+5. **Timeline (ציר זמן MVP):** יצירת ממשק חדש לחלוטין (Gantt-like פשוט) המציג משימות פתוחות עם תאריכי יעד ותלויות, מבוסס HTML/CSS בלבד ללא ספריות חיצוניות כבדות. תפריט הניווט (Sidebar ו-Bottom Nav) תפס את התוספת.
+
+### קבצים שנוספו
+- `app/templates/timeline.html` — תצוגת ציר הזמן החדשה.
+- `tests/test_phase3_advanced.py` — בדיקות אינטגרציה ולוגיקה (Timeline, Checklists, Dependencies, Sub Tasks).
+
+### קבצים ששונו
+- `app/models/task.py` — הוספת מודל Checklists, טבלת Association לתלויות, שדות `parent_task_id` ו-`estimated_minutes`.
+- `app/__init__.py` — עדכון פונקציית המיגרציה הפנימית להוספת השדות והטבלאות החדשים באופן אוטומטי (idempotent).
+- `app/routes/tasks.py` — הוספת Route ל-Timeline, הוספת Routes אסינכרוניים לניהול ה-Checklist, ועדכון `edit()` ו-`update_status()` להתמודדות עם התלויות החדשות (כולל Soft Block) ועם שדה הזמן המוערך, לצד Audit Logs משלימים.
+- `app/templates/base.html` — עדכון תפריטי הניווט (דסקטופ ומובייל) לכלול את קישור ה-Timeline.
+- `app/templates/edit_task.html` — הרחבת טופס המשימה להצגת תלויות, משימות אב, זמן מוערך וממשק Checklists אינטראקטיבי.
+
+### Database Changes
+- **טבלאות חדשות:** `task_checklist_item`, `task_dependencies`.
+- **עמודות חדשות ב-`task`:** `parent_task_id` (INTEGER), `estimated_minutes` (INTEGER).
+- Migration אוטומטי נשמר בתבנית המקורית דרך פונקציות ב-`app/__init__.py`.
+
+### API Changes
+- 2 endpoints חדשים פנימיים (AJAX): `POST /task/<int:task_id>/checklist` ו- `POST /checklist/<int:item_id>/toggle`.
+- endpoint חדש לתצוגה: `GET /timeline`.
+- שינוי התנהגותי ב- `POST /update_status/<int:id>`: כאשר מועבר ל-`DONE`, מחזיר אזהרת JSON עם דגל `warning: true` אם קיימות תלויות שטרם הושלמו, אלא אם מועבר `force_complete=True`.
+
+### Validation (Full Suite)
+- ✅ בדיקות אוטומטיות מלאות נוספו ורצות יחד עם שאר המערכת.
+- ✅ ה-Timeline רץ בצורה תקינה גם ללא תאריכי יצירה (הגנת Jinja תקינה `created_at if task.created_at else ...`).
+- ✅ ה-AJAX של ה-Checklists מאמת CSRF Token ומבצע שינויים בלי לטעון את העמוד מחדש.
+- ✅ אזהרת ה-Soft Block נבדקה בצד השרת ובאמצעות הטסטים.
+- ✅ מיגרציות הנתונים נשמרות אידמפוטנטיות ללא התנגשויות (SQLAlchemy create_all לצד ALTER ADD COLUMN).
+
+### Known Issues
+- שימוש ב-`Query.get()` (API ישן, הוגדר מ-Phase 1 כחוב טכני שיידחה לשלב עתידי).
+
+### Next Phase
+ממתין להוראות להמשך לפי ה-Roadmap المקורי של הפרויקט.
