@@ -8,6 +8,42 @@
 
 <p class="text-muted small">מתעד פעולות רגישות בלבד (מחיקות, שינויי הרשאות, כלי ניהול מסוכנים) - לא כל פעולה במערכת.</p>
 
+<!-- טופס סינון (Phase 4) -->
+<div class="card-modern shadow-sm p-3 mb-4" style="background-color: var(--bs-tertiary-bg);">
+    <form method="GET" class="row g-3 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label small text-muted fw-bold">סנן לפי משתמש</label>
+            <select name="user_id" class="form-select form-select-sm">
+                <option value="">-- כל המשתמשים --</option>
+                {% for u in users %}
+                <option value="{{ u.id }}" {% if current_filters.get('user_id') == str(u.id) %}selected{% endif %}>{{ u.username }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small text-muted fw-bold">סנן לפי פעולה</label>
+            <select name="action" class="form-select form-select-sm">
+                <option value="">-- כל הפעולות --</option>
+                {% for key, label in action_labels.items() %}
+                <option value="{{ key }}" {% if current_filters.get('action') == key %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label small text-muted fw-bold">מתאריך</label>
+            <input type="date" name="date_from" class="form-control form-control-sm" value="{{ current_filters.get('date_from', '') }}">
+        </div>
+        <div class="col-md-2">
+            <label class="form-label small text-muted fw-bold">עד תאריך</label>
+            <input type="date" name="date_to" class="form-control form-control-sm" value="{{ current_filters.get('date_to', '') }}">
+        </div>
+        <div class="col-md-2 d-flex gap-2">
+            <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-filter"></i> סנן</button>
+            <a href="{{ url_for('dashboard.audit_log') }}" class="btn btn-sm btn-outline-secondary" title="נקה סינון"><i class="bi bi-x-circle"></i></a>
+        </div>
+    </form>
+</div>
+
 <div class="card-modern shadow-sm p-0">
     <div class="table-responsive">
         <table class="table align-middle mb-0 table-hover">
@@ -44,7 +80,7 @@
                     <td class="small text-muted">{{ e.details or '' }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="5" class="text-center text-muted py-4">אין עדיין רשומות ביומן הביקורת.</td></tr>
+                <tr><td colspan="5" class="text-center text-muted py-4">אין רשומות ביומן הביקורת שתואמות לסינון המבוקש.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -54,7 +90,8 @@
     <div class="p-3 border-top d-flex justify-content-center gap-2">
         {% for page_num in pagination.iter_pages() %}
             {% if page_num %}
-                <a href="{{ url_for('dashboard.audit_log', page=page_num) }}"
+                <!-- שמירת פרמטרי הסינון הנוכחיים בפגינציה -->
+                <a href="{{ url_for('dashboard.audit_log', page=page_num, user_id=current_filters.get('user_id'), action=current_filters.get('action'), date_from=current_filters.get('date_from'), date_to=current_filters.get('date_to')) }}"
                    class="btn btn-sm {% if page_num == pagination.page %}btn-primary{% else %}btn-outline-secondary{% endif %}">{{ page_num }}</a>
             {% else %}
                 <span class="px-2">...</span>
