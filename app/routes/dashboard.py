@@ -8,7 +8,7 @@ from app.models.audit_log import log_audit
 from app.models.automation import AutomationRule, AutomationLog
 from app.services import automation_service
 from app import db
-from datetime import date
+from datetime import date, datetime, timedelta
 
 bp = Blueprint("dashboard", __name__)
 
@@ -28,16 +28,24 @@ def dashboard():
         tasks = Task.query.filter_by(assigned_to_id=current_user.id).all()
 
     total = len(tasks)
-    done_count = len([t for t in tasks if t.status == "DONE"])
-    open_count = len([t for t in tasks if t.status != "DONE"])
+    
+    open_tasks = [t for t in tasks if t.status != "DONE"]
+    done_tasks = [t for t in tasks if t.status == "DONE"]
+    
+    done_count = len(done_tasks)
+    open_count = len(open_tasks)
     completion_percent = int((done_count / total * 100)) if total > 0 else 0
 
-    high_priority = len([t for t in tasks if t.status != "DONE" and t.priority == "HIGH"])
-    medium_priority = len([t for t in tasks if t.status != "DONE" and t.priority == "MEDIUM"])
-    low_priority = len([t for t in tasks if t.status != "DONE" and t.priority == "LOW"])
+    high_priority = len([t for t in open_tasks if t.priority == "HIGH"])
+    medium_priority = len([t for t in open_tasks if t.priority == "MEDIUM"])
+    low_priority = len([t for t in open_tasks if t.priority == "LOW"])
+    
+    # חישוב עומסי עבודה (Workload Analytics) בהתבסס על הזמן המוערך (Phase 3+4)
+    total_estimated_minutes = sum([t.estimated_minutes for t in open_tasks if t.estimated_minutes])
+    done_estimated_minutes = sum([t.estimated_minutes for t in done_tasks if t.estimated_minutes])
 
-    today_tasks = [t for t in tasks if t.status != "DONE" and t.due_date == today]
-    urgent_list = [t for t in tasks if t.status != "DONE" and (t.priority == "HIGH" or (t.due_date and t.due_date < today))]
+    today_tasks = [t for t in open_tasks if t.due_date == today]
+    urgent_list = [t for t in open_tasks if (t.priority == "HIGH" or (t.due_date and t.due_date < today))]
     urgent_list = sorted(urgent_list, key=lambda x: x.due_date or date.max)[:5]
 
     # מספר ימי האיחור בפועל לכל משימה (במקום דגל בינארי "באיחור/לא") - עוזר לתעדף
@@ -57,12 +65,17 @@ def dashboard():
             dept_tasks = [t for t in tasks if t.assigned_to_id in member_ids]
             dept_total = len(dept_tasks)
             dept_done = len([t for t in dept_tasks if t.status == "DONE"])
+            
+            # עומס עבודה פתוח ברמת מחלקה (Phase 4)
+            dept_open_minutes = sum([t.estimated_minutes for t in dept_tasks if t.status != "DONE" and t.estimated_minutes])
+            
             department_stats.append({
                 'name': dept.name,
                 'member_count': len(member_ids),
                 'total': dept_total,
                 'done': dept_done,
                 'open': dept_total - dept_done,
+                'open_minutes': dept_open_minutes,
                 'completion_percent': int((dept_done / dept_total * 100)) if dept_total > 0 else 0,
             })
 
@@ -74,7 +87,9 @@ def dashboard():
         "dashboard.html", total=total, done=done_count, open_count=open_count,
         completion_percent=completion_percent, high_priority=high_priority,
         medium_priority=medium_priority, low_priority=low_priority,
-        overdue_count=len([t for t in tasks if t.status != "DONE" and t.due_date and t.due_date < today]),
+        overdue_count=len([t for t in open_tasks if t.due_date and t.due_date < today]),
+        total_estimated_minutes=total_estimated_minutes,
+        done_estimated_minutes=done_estimated_minutes,
         today_tasks=today_tasks, urgent_list=urgent_list,
         department_stats=department_stats, unassigned_dept_count=unassigned_dept_count
     )
@@ -420,7 +435,7 @@ def delete_template(template_id):
 
 
 # =========================================================
-# 📜 יומן ביקורת - מי עשה מה (admin בלבד)
+# 📜 יומן ביקורת - מי עשה מה (admin בלבד) - כולל מערכת סינון (Phase 4)
 # =========================================================
 
 _AUDIT_ACTION_LABELS = {
@@ -436,6 +451,9 @@ _AUDIT_ACTION_LABELS = {
     "use_upgrade_permissions_tool": "שימוש בכלי /upgrade-permissions",
     "force_password_change": "חיוב החלפת סיסמה",
     "bulk_delete_tasks": "מחיקה קבוצתית של משימות",
+    "UPDATE_TASK_STRUCTURE": "עדכון מבנה משימה (תלויות/הורה)",
+    "ADD_CHECKLIST": "הוספת פריט צ'קליסט",
+    "STATUS_CHANGE": "שינוי סטטוס משימה",
 }
 
 
@@ -447,18 +465,49 @@ def audit_log():
         return redirect(url_for('tasks.index'))
 
     from app.models.audit_log import AuditLog
+    
+    query = AuditLog.query
+
+    # פילטור דינמי מבוסס פרמטרים ב-GET (Phase 4)
+    filter_user_id = request.args.get("user_id", "")
+    if filter_user_id.isdigit():
+        query = query.filter(AuditLog.user_id == int(filter_user_id))
+    
+    filter_action = request.args.get("action", "")
+    if filter_action:
+        query = query.filter(AuditLog.action == filter_action)
+        
+    filter_date_from = request.args.get("date_from", "")
+    if filter_date_from:
+        try:
+            from_date = datetime.strptime(filter_date_from, "%Y-%m-%d")
+            query = query.filter(AuditLog.created_at >= from_date)
+        except ValueError:
+            pass
+
+    filter_date_to = request.args.get("date_to", "")
+    if filter_date_to:
+        try:
+            to_date = datetime.strptime(filter_date_to, "%Y-%m-%d")
+            query = query.filter(AuditLog.created_at < to_date + timedelta(days=1))
+        except ValueError:
+            pass
 
     page = request.args.get("page", 1, type=int)
     pagination = db.paginate(
-        AuditLog.query.order_by(AuditLog.created_at.desc()),
+        query.order_by(AuditLog.created_at.desc()),
         page=page, per_page=30, error_out=False
     )
+    
+    users = User.query.order_by(User.username).all()
 
     return render_template(
         "admin_audit_log.html",
         pagination=pagination,
         entries=pagination.items,
         action_labels=_AUDIT_ACTION_LABELS,
+        users=users,
+        current_filters=request.args
     )
 
 
@@ -581,4 +630,3 @@ def admin_automation_log():
         page=page, per_page=30, error_out=False
     )
     return render_template("admin_automation_log.html", pagination=pagination, entries=pagination.items)
-
