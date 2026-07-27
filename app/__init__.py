@@ -101,6 +101,7 @@ def _auto_migrate_and_seed_admin(app):
     בכך אין תלות בביקור ידני בכתובת מיגרציה - זה קורה לבד עם כל deploy.
     """
     from app.models.user import User, ROLE_ADMIN
+    from app.models.sla import SlaPolicy
 
     _add_columns_if_missing(app, 'user', [
         ('department_id', 'INTEGER'),
@@ -118,9 +119,12 @@ def _auto_migrate_and_seed_admin(app):
         ('source', "VARCHAR(20) DEFAULT 'internal'"),
         ('reporter_name', 'VARCHAR(100)'),
         ('reporter_phone', 'VARCHAR(20)'),
-        # Phase 3 Fields
+        # Phase 3 & 4 Fields
         ('parent_task_id', 'INTEGER'),
         ('estimated_minutes', 'INTEGER'),
+        ('task_type', 'VARCHAR(50)'),
+        ('sla_breach_at', 'TIMESTAMP'),
+        ('updated_at', 'TIMESTAMP'),
     ])
 
     # אינדקסים על עמודות שנשאלות בכל טעינת עמוד כמעט - קריטי לביצועים ככל שהנתונים גדלים.
@@ -129,6 +133,7 @@ def _auto_migrate_and_seed_admin(app):
     _add_index_if_missing(app, 'ix_task_status', 'task', 'status')
     _add_index_if_missing(app, 'ix_task_source', 'task', 'source')
     _add_index_if_missing(app, 'ix_task_department_id', 'task', 'department_id')
+    _add_index_if_missing(app, 'ix_task_sla_breach_at', 'task', 'sla_breach_at')
     _add_index_if_missing(app, 'ix_notification_user_id', 'notification', 'user_id')
     _add_index_if_missing(app, 'ix_user_department_id', 'user', 'department_id')
 
@@ -140,6 +145,16 @@ def _auto_migrate_and_seed_admin(app):
             db.session.commit()
         except Exception:
             db.session.rollback()
+
+    # אתחול הגדרות ברירת מחדל של SLA אם הטבלה ריקה (Phase 4.2)
+    if not SlaPolicy.query.first():
+        db.session.add_all([
+            SlaPolicy(name='עדיפות קריטית', priority='CRITICAL', max_hours=2.0),
+            SlaPolicy(name='עדיפות גבוהה', priority='HIGH', max_hours=8.0),
+            SlaPolicy(name='עדיפות רגילה', priority='MEDIUM', max_hours=24.0),
+            SlaPolicy(name='עדיפות נמוכה', priority='LOW', max_hours=72.0),
+        ])
+        db.session.commit()
 
     # אם כבר קיים מנהל מערכת - אין מה לעשות
     if User.query.filter_by(role=ROLE_ADMIN).first():
@@ -201,6 +216,7 @@ def create_app():
     with app.app_context():
         from app.models.department import Department
         from app.models.user import User
+        from app.models.sla import SlaPolicy
         from app.models.task import Task, TaskChecklistItem, task_dependencies
         from app.models.comment import TaskComment
         from app.models.notification import Notification
