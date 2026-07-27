@@ -1,6 +1,71 @@
 {% extends "base.html" %}
 {% block content %}
 
+{% if current_user.role in ['admin', 'manager'] %}
+<!-- Phase 4.4: Command Center -->
+<div class="card-modern shadow-sm mb-4 border-top border-danger border-4">
+    <div class="p-3 d-flex align-items-center bg-danger text-white rounded-top" style="opacity: 0.9;">
+        <h5 class="m-0 fw-bold"><i class="bi bi-shield-shaded me-2"></i> חמ"ל מנהלים - Command Center</h5>
+    </div>
+    <div class="p-3 bg-light">
+        <div class="row g-3">
+            
+            <!-- SLA Breaches -->
+            <div class="col-md-4">
+                <div class="card border-danger h-100 shadow-sm">
+                    <div class="card-header bg-white text-danger fw-bold"><i class="bi bi-alarm-fill"></i> חריגות SLA ({{ sla_breached|length }})</div>
+                    <ul class="list-group list-group-flush small" style="max-height: 200px; overflow-y: auto;">
+                        {% for t in sla_breached %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <a href="/edit/{{t.id}}" class="text-decoration-none text-dark text-truncate w-75">{{t.title}}</a>
+                            <span class="text-danger fw-bold" style="font-size: 11px;">{{ t.sla_breach_at.strftime('%H:%M %d/%m') }}</span>
+                        </li>
+                        {% else %}
+                        <li class="list-group-item text-muted text-center py-3">אין חריגות SLA. מצוין!</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Stuck Tasks -->
+            <div class="col-md-4">
+                <div class="card border-warning h-100 shadow-sm">
+                    <div class="card-header bg-white text-warning fw-bold"><i class="bi bi-pause-circle-fill"></i> משימות תקועות ({{ stuck_tasks|length }})</div>
+                    <ul class="list-group list-group-flush small" style="max-height: 200px; overflow-y: auto;">
+                        {% for t in stuck_tasks %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <a href="/edit/{{t.id}}" class="text-decoration-none text-dark text-truncate w-75">{{t.title}}</a>
+                            <span class="badge bg-warning text-dark">ללא התקדמות</span>
+                        </li>
+                        {% else %}
+                        <li class="list-group-item text-muted text-center py-3">אין משימות שתקועות בתהליך.</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Unassigned Tasks -->
+            <div class="col-md-4">
+                <div class="card border-info h-100 shadow-sm">
+                    <div class="card-header bg-white text-info fw-bold"><i class="bi bi-person-x-fill"></i> משימות ללא אחראי ({{ unassigned_open|length }})</div>
+                    <ul class="list-group list-group-flush small" style="max-height: 200px; overflow-y: auto;">
+                        {% for t in unassigned_open %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <a href="/edit/{{t.id}}" class="text-decoration-none text-dark text-truncate w-75">{{t.title}}</a>
+                            <a href="/edit/{{t.id}}" class="badge bg-info text-white text-decoration-none">הקצה</a>
+                        </li>
+                        {% else %}
+                        <li class="list-group-item text-muted text-center py-3">כל המשימות מוקצות בהצלחה.</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="card-modern p-3 shadow-sm mb-4">
     <div class="d-flex justify-content-between align-items-center mb-2">
         <h6 class="m-0 fw-bold"><i class="bi bi-speedometer2 text-primary"></i> התקדמות כללית</h6>
@@ -12,7 +77,6 @@
 </div>
 
 <div class="row g-3 mb-4">
-    <!-- שינוי ל-6 עמודות גמישות כדי להכיל את נתוני העומס מ-Phase 4 -->
     <div class="col-md-4 col-lg-2">
         <div class="card-modern p-3 shadow-sm text-center border-bottom border-primary border-4 stat-card" style="animation-delay: 0.03s;">
             <i class="bi bi-list-check fs-4 text-primary mb-1 d-block"></i>
@@ -30,7 +94,7 @@
     <div class="col-md-4 col-lg-2">
         <div class="card-modern p-3 shadow-sm text-center border-bottom border-danger border-4 stat-card" style="animation-delay: 0.15s;">
             <i class="bi bi-exclamation-triangle fs-4 text-danger mb-1 d-block"></i>
-            <h6 class="text-muted mb-1 small">עדיפות גבוהה (פתוח)</h6>
+            <h6 class="text-muted mb-1 small">עדיפות גבוהה</h6>
             <h3 class="mb-0 fw-bold text-danger">{{high_priority}}</h3>
         </div>
     </div>
@@ -109,31 +173,6 @@
                 </li>
                 {% else %}
                 <li class="list-group-item text-center text-muted p-4">אין משימות שמועד הסיום שלהן הוא היום.</li>
-                {% endfor %}
-            </ul>
-        </div>
-
-        <div class="card-modern shadow-sm">
-            <div class="p-3 border-bottom rounded-top d-flex justify-content-between align-items-center" style="background: var(--bs-tertiary-bg);">
-                <h6 class="m-0 fw-bold text-danger"><i class="bi bi-exclamation-octagon"></i> לטיפול דחוף (איחורים / עדיפות גבוהה)</h6>
-            </div>
-            <ul class="list-group list-group-flush">
-                {% for t in urgent_list %}
-                <li class="list-group-item d-flex justify-content-between align-items-center p-3">
-                    <div>
-                        <div class="fw-bold">{{t.title}}</div>
-                        <div class="small text-danger">
-                            {% if t.priority == "HIGH" %} עדיפות גבוהה | {% endif %}
-                            {% if t.due_date %} יעד: {{t.due_date.strftime('%d/%m/%Y')}} {% endif %}
-                            {% if t.days_overdue and t.days_overdue > 0 %}
-                                <span class="badge bg-danger ms-1">{{ t.days_overdue }} {% if t.days_overdue == 1 %}יום{% else %}ימים{% endif %} באיחור</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <a href="/edit/{{t.id}}" class="btn btn-sm btn-light border">צפה</a>
-                </li>
-                {% else %}
-                <li class="list-group-item text-center text-muted p-4">איזה יופי! אין משימות דחופות או באיחור.</li>
                 {% endfor %}
             </ul>
         </div>
@@ -240,8 +279,8 @@
         priorityChartInstance = new Chart(document.getElementById("priorityChart"), {
             type: 'doughnut',
             data: {
-                labels: ['גבוהה', 'בינונית', 'נמוכה'],
-                datasets: [{ data: [{{high_priority}}, {{medium_priority}}, {{low_priority}}], backgroundColor: ['#dc2626', '#d97706', '#2454d6'], borderWidth: 0 }]
+                labels: ['קריטית', 'גבוהה', 'בינונית', 'נמוכה'],
+                datasets: [{ data: [0, {{high_priority}}, {{medium_priority}}, {{low_priority}}], backgroundColor: ['#991b1b', '#dc2626', '#d97706', '#2454d6'], borderWidth: 0 }]
             },
             options: {
                 cutout: '75%',
