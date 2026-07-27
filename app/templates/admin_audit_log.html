@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="m-0 fw-bold" style="color: var(--brand-navy);"><i class="bi bi-clock-history text-primary"></i> יומן ביקורת</h4>
+    <a href="/admin" class="btn btn-outline-secondary fw-semibold"><i class="bi bi-arrow-right"></i> חזרה לפאנל הניהול</a>
+</div>
+
+<p class="text-muted small">מתעד פעולות רגישות בלבד (מחיקות, שינויי הרשאות, כלי ניהול מסוכנים) - לא כל פעולה במערכת.</p>
+
+<div class="card-modern shadow-sm p-0">
+    <div class="table-responsive">
+        <table class="table align-middle mb-0 table-hover">
+            <thead class="table-light">
+                <tr>
+                    <th>תאריך ושעה</th>
+                    <th>מי ביצע</th>
+                    <th>פעולה</th>
+                    <th>יעד</th>
+                    <th>פרטים</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in entries %}
+                <tr style="animation: fadeIn 0.3s var(--ease) backwards; animation-delay: {{ loop.index0 * 0.02 }}s;">
+                    <td class="small text-muted">{{ e.created_at.strftime('%d/%m/%Y %H:%M') if e.created_at else '' }}</td>
+                    <td class="fw-semibold">
+                        {% if e.actor_username == 'system' %}
+                            <span class="badge bg-secondary"><i class="bi bi-robot"></i> מערכת (cron/מפתח)</span>
+                        {% else %}
+                            {{ e.actor_username }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge bg-light text-dark border">{{ action_labels.get(e.action, e.action) }}</span>
+                    </td>
+                    <td class="small">
+                        {% if e.target_label %}
+                            {{ e.target_type }}: <b>{{ e.target_label }}</b>
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="small text-muted">{{ e.details or '' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-center text-muted py-4">אין עדיין רשומות ביומן הביקורת.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if pagination.pages > 1 %}
+    <div class="p-3 border-top d-flex justify-content-center gap-2">
+        {% for page_num in pagination.iter_pages() %}
+            {% if page_num %}
+                <a href="{{ url_for('dashboard.audit_log', page=page_num) }}"
+                   class="btn btn-sm {% if page_num == pagination.page %}btn-primary{% else %}btn-outline-secondary{% endif %}">{{ page_num }}</a>
+            {% else %}
+                <span class="px-2">...</span>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

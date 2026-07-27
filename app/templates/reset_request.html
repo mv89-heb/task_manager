@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="row justify-content-center align-items-center" style="min-height: 65vh;">
+    <div class="col-md-5">
+        <div class="card-modern shadow p-4" style="border-top: 4px solid var(--brand-blue); animation: fadeInUp 0.5s var(--ease);">
+            <div class="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle"
+                 style="width: 56px; height: 56px; background: var(--brand-blue-light);">
+                <i class="bi bi-key fs-4" style="color: var(--brand-blue);"></i>
+            </div>
+            <h4 class="fw-bold mb-1 text-center">שחזור סיסמה</h4>
+            <p class="text-muted small mb-4 text-center">הזן את כתובת האימייל שלך, ואם היא קיימת במערכת נשלח אליה קישור לאיפוס הסיסמה.</p>
+            <p class="text-muted small mb-4 text-center"><i class="bi bi-info-circle"></i> אין לך מייל רשום? פנה למנהל שלך לאיפוס ידני של הסיסמה.</p>
+
+            <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="input-group mb-3">
+                    <span class="input-group-text bg-white"><i class="bi bi-envelope text-muted"></i></span>
+                    <input type="email" name="email" class="form-control" required autofocus>
+                </div>
+                <button type="submit" class="btn btn-primary fw-semibold w-100"><i class="bi bi-send"></i> שלח קישור לאיפוס</button>
+            </form>
+
+            <div class="text-center mt-3">
+                <a href="/login" class="text-muted small">חזרה להתחברות</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

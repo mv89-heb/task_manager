@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="m-0 fw-bold" style="color: var(--brand-navy);"><i class="bi bi-clock-history text-primary"></i> יומן הרצת אוטומציות</h4>
+    <a href="/admin/automations" class="btn btn-outline-secondary fw-semibold"><i class="bi bi-arrow-right"></i> חזרה לאוטומציות</a>
+</div>
+
+<div class="card-modern shadow-sm p-0">
+    <div class="table-responsive">
+        <table class="table align-middle mb-0 table-hover">
+            <thead class="table-light">
+                <tr>
+                    <th>תאריך ושעה</th>
+                    <th>כלל</th>
+                    <th>משימה</th>
+                    <th>תוצאה</th>
+                    <th>פרטים</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in entries %}
+                <tr>
+                    <td class="small text-muted">{{ e.triggered_at.strftime('%d/%m/%Y %H:%M') if e.triggered_at else '' }}</td>
+                    <td class="fw-semibold">{{ e.rule.name if e.rule else '—' }}</td>
+                    <td class="small">
+                        {% if e.task %}
+                            <a href="/edit/{{ e.task.id }}">{{ e.task.title }}</a>
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if e.success %}
+                            <span class="badge bg-success">הצלחה</span>
+                        {% else %}
+                            <span class="badge bg-danger">כשל</span>
+                        {% endif %}
+                    </td>
+                    <td class="small text-muted">{{ e.details or '' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-center text-muted py-4">אין עדיין רשומות ביומן.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}

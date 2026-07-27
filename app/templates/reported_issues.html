@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="fw-bold text-dark mb-1"><i class="bi bi-megaphone text-danger"></i> תקלות מדווחות</h3>
+        <p class="text-muted small m-0">כל הדיווחים שהתקבלו דרך הטופס הציבורי - נפרד לחלוטין ממשימות המערכת הפנימיות</p>
+    </div>
+</div>
+
+<div class="card-modern shadow-sm p-3 mb-4" style="border-right: 4px solid var(--brand-blue);">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <div class="fw-semibold small mb-1"><i class="bi bi-link-45deg"></i> קישור לטופס הדיווח הציבורי (לשיתוף / מדבקת QR)</div>
+            <code class="small" id="reportUrlText">{{ report_url }}</code>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyReportUrl()">
+            <i class="bi bi-clipboard"></i> העתק קישור
+        </button>
+    </div>
+</div>
+
+<div class="card-modern shadow-sm border-0 mb-3 p-2">
+    <form method="GET" class="d-flex gap-2 align-items-end flex-wrap">
+        <div style="min-width: 220px;">
+            <label class="form-label small text-muted mb-1">חיפוש חופשי</label>
+            <input type="text" name="search" class="form-control" placeholder="חפש בכותרת/תיאור..." value="{{ request.args.get('search', '') }}">
+        </div>
+        <div style="min-width: 200px;">
+            <label class="form-label small text-muted mb-1">סטטוס</label>
+            <select name="status" class="form-select">
+                <option value="">הכל</option>
+                <option value="TODO" {% if request.args.get('status') == 'TODO' %}selected{% endif %}>לביצוע</option>
+                <option value="IN_PROGRESS" {% if request.args.get('status') == 'IN_PROGRESS' %}selected{% endif %}>בתהליך</option>
+                <option value="DONE" {% if request.args.get('status') == 'DONE' %}selected{% endif %}>בוצע</option>
+            </select>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> סנן</button>
+            <a href="/reported_issues" class="btn btn-light border text-muted" title="נקה סינון"><i class="bi bi-x-lg"></i></a>
+        </div>
+        <div class="d-flex gap-2 ms-auto">
+            <a href="{{ url_for('tasks.export_excel', source='public', search=request.args.get('search'), status=request.args.get('status')) }}" class="btn btn-sm btn-outline-success">
+                <i class="bi bi-file-earmark-excel"></i> Excel
+            </a>
+            <a href="{{ url_for('tasks.export_pdf', source='public', search=request.args.get('search'), status=request.args.get('status')) }}" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-file-earmark-pdf"></i> PDF
+            </a>
+        </div>
+    </form>
+</div>
+
+<div class="card-modern shadow-sm border-0 bg-white">
+    {% for issue in issues %}
+    <div class="p-3 {% if not loop.last %}border-bottom{% endif %}" style="animation: fadeIn 0.3s var(--ease) backwards; animation-delay: {{ loop.index0 * 0.03 }}s;">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+            <div class="flex-grow-1">
+                <div class="fw-bold fs-6">
+                    {{ issue.title }}
+                    {% if issue.department %}
+                        <span class="badge bg-light text-dark border ms-1">{{ issue.department.name }}</span>
+                    {% endif %}
+                </div>
+                {% if issue.description %}
+                <div class="small text-muted mt-1">{{ issue.description }}</div>
+                {% endif %}
+                <div class="small mt-2">
+                    {% if issue.reporter_name or issue.reporter_phone %}
+                        <i class="bi bi-person-circle text-muted"></i>
+                        {{ issue.reporter_name or "לא צוין שם" }}
+                        {% if issue.reporter_phone %}
+                            · <a href="tel:{{ issue.reporter_phone }}" class="text-decoration-none"><i class="bi bi-telephone"></i> {{ issue.reporter_phone }}</a>
+                        {% endif %}
+                    {% else %}
+                        <span class="text-muted"><i class="bi bi-person-x"></i> המדווח לא השאיר פרטי קשר</span>
+                    {% endif %}
+                    <span class="text-muted ms-2">· {{ issue.created_at.strftime('%d/%m/%Y %H:%M') if issue.created_at else '' }}</span>
+                </div>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+                <select class="form-select form-select-sm status-select fw-semibold
+                    {% if issue.status == 'DONE' %}text-success{% elif issue.status == 'IN_PROGRESS' %}text-warning{% else %}text-secondary{% endif %}"
+                    data-task-id="{{ issue.id }}" style="border-radius: 20px; font-size: 12px; min-width: 110px;">
+                    <option value="TODO" {% if issue.status == 'TODO' or not issue.status %}selected{% endif %}>לביצוע</option>
+                    <option value="IN_PROGRESS" {% if issue.status == 'IN_PROGRESS' %}selected{% endif %}>בתהליך</option>
+                    <option value="DONE" {% if issue.status == 'DONE' %}selected{% endif %}>בוצע</option>
+                </select>
+                <a href="/edit/{{ issue.id }}" class="btn btn-sm btn-light border text-primary"><i class="bi bi-pencil"></i></a>
+                <form method="POST" action="/delete/{{ issue.id }}" class="d-inline" onsubmit="return confirm('למחוק את הדיווח לצמיתות?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-sm btn-light border text-danger"><i class="bi bi-trash"></i></button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center text-muted py-5">
+        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+        אין דיווחים {% if request.args.get('status') %}בסטטוס הזה{% endif %} כרגע.
+    </div>
+    {% endfor %}
+</div>
+
+{% if pagination.pages > 1 %}
+<div class="d-flex justify-content-center gap-2 mt-3">
+    {% for page_num in pagination.iter_pages() %}
+        {% if page_num %}
+            <a href="{{ url_for('tasks.reported_issues', page=page_num, status=request.args.get('status'), search=request.args.get('search')) }}"
+               class="btn btn-sm {% if page_num == pagination.page %}btn-primary{% else %}btn-outline-secondary{% endif %}">{{ page_num }}</a>
+        {% else %}
+            <span class="px-2">...</span>
+        {% endif %}
+    {% endfor %}
+</div>
+{% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+    document.querySelectorAll('.status-select').forEach(function (select) {
+        const originalValue = select.value;
+        select.addEventListener('change', function () {
+            const taskId = select.getAttribute('data-task-id');
+            const newStatus = select.value;
+            fetch(`/update_status/${taskId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ status: newStatus })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    if (typeof createToast === 'function') createToast('הסטטוס עודכן', 'success');
+                } else {
+                    select.value = originalValue;
+                    if (typeof createToast === 'function') createToast('אין הרשאה לעדכן', 'danger');
+                }
+            })
+            .catch(() => { select.value = originalValue; });
+        });
+    });
+});
+
+function copyReportUrl() {
+    const text = document.getElementById('reportUrlText').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        if (typeof createToast === 'function') createToast('הקישור הועתק', 'success');
+    });
+}
+</script>
+
+{% endblock %}
