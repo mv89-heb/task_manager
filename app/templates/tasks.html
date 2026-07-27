@@ -14,7 +14,7 @@
     </div>
 
     {% if current_user.role in ['admin', 'manager'] %}
-    <div class="d-flex gap-2">
+    <div class="d-none d-md-flex gap-2">
         <button type="button" class="btn btn-outline-primary fw-semibold shadow-sm" data-bs-toggle="modal" data-bs-target="#messageModal" onclick="openMessageModal()">
             <i class="bi bi-send"></i> שלח הודעה לצוות
         </button>
@@ -27,10 +27,19 @@
     {% endif %}
 </div>
 
+<!-- Mobile FAB for New Task (Phase 4.6) -->
+{% if current_user.role in ['admin', 'manager'] %}
+<button class="btn btn-primary d-md-none position-fixed rounded-circle shadow-lg d-flex align-items-center justify-content-center" 
+        style="bottom: 85px; right: 20px; width: 56px; height: 56px; z-index: 1040; font-size: 24px;" 
+        data-bs-toggle="modal" data-bs-target="#createTaskModal" title="יצירת משימה חדשה">
+    <i class="bi bi-plus-lg"></i>
+</button>
+{% endif %}
+
 <div class="card-modern shadow-sm border-0 mb-4 bg-white">
     <form method="GET" action="/" class="p-2">
         <div class="row g-2 align-items-end">
-            <div class="col-md-4">
+            <div class="col-md-4 d-none d-md-block">
                 <label class="form-label small text-muted mb-1">חיפוש חופשי</label>
                 <input type="text" name="search" class="form-control" placeholder="חפש משימה..." value="{{ request.args.get('search', '') }}">
             </div>
@@ -47,12 +56,13 @@
                 <label class="form-label small text-muted mb-1">עדיפות</label>
                 <select name="priority" class="form-select">
                     <option value="">הכל</option>
+                    <option value="CRITICAL" {% if request.args.get('priority') == 'CRITICAL' %}selected{% endif %}>קריטית</option>
                     <option value="HIGH" {% if request.args.get('priority') == 'HIGH' %}selected{% endif %}>גבוהה</option>
                     <option value="MEDIUM" {% if request.args.get('priority') == 'MEDIUM' %}selected{% endif %}>בינונית</option>
                     <option value="LOW" {% if request.args.get('priority') == 'LOW' %}selected{% endif %}>נמוכה</option>
                 </select>
             </div>
-            <div class="col-md-2">
+            <div class="col-md-2 d-none d-md-block">
                 <label class="form-label small text-muted mb-1">מיון לפי</label>
                 <select name="sort" class="form-select">
                     <option value="created_at" {% if request.args.get('sort') == 'created_at' %}selected{% endif %}>תאריך יצירה</option>
@@ -60,8 +70,8 @@
                     <option value="priority" {% if request.args.get('sort') == 'priority' %}selected{% endif %}>עדיפות</option>
                 </select>
             </div>
-            <div class="col-md-2 d-flex gap-2">
-                <button type="submit" class="btn btn-primary w-100 fw-semibold"><i class="bi bi-search"></i> סנן</button>
+            <div class="col-md-2 d-flex gap-2 mt-3 mt-md-0">
+                <button type="submit" class="btn btn-primary w-100 fw-semibold"><i class="bi bi-filter"></i> סינון</button>
                 <a href="/" class="btn btn-light border text-muted px-3" title="נקה סינונים"><i class="bi bi-x-lg"></i></a>
             </div>
         </div>
@@ -70,7 +80,7 @@
             <button class="btn btn-sm btn-link text-muted p-0" type="button" data-bs-toggle="collapse" data-bs-target="#advancedFilters">
                 <i class="bi bi-sliders"></i> סינון מתקדם
             </button>
-            <div class="d-flex gap-2">
+            <div class="d-none d-md-flex gap-2">
                 <a href="{{ url_for('tasks.export_excel', **request.args) }}" class="btn btn-sm btn-outline-success">
                     <i class="bi bi-file-earmark-excel"></i> ייצוא Excel
                 </a>
@@ -126,7 +136,63 @@
 </div>
 {% endif %}
 
-<div class="card-modern shadow-sm border-0 bg-white">
+
+<!-- Phase 4.6: Mobile Task Cards View (Visible only on mobile) -->
+<div class="d-block d-md-none mb-4">
+    {% for task in tasks %}
+    {% set is_overdue = task.due_date and task.due_date < now_date and task.status != 'DONE' %}
+    <div class="card shadow-sm mb-3 border-0 rounded-4" style="{% if is_overdue %}border-right: 4px solid #dc2626 !important;{% endif %}">
+        <div class="card-body p-3">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="badge {% if task.priority=='CRITICAL' %}bg-dark{% elif task.priority=='HIGH' %}bg-danger{% elif task.priority=='MEDIUM' %}bg-warning text-dark{% else %}bg-primary{% endif %}">
+                    {{ task.priority }}
+                </span>
+                <span class="small fw-bold {% if is_overdue %}text-danger{% else %}text-muted{% endif %}">
+                    {{ task.due_date.strftime('%d/%m') if task.due_date else '-' }} <i class="bi bi-calendar"></i>
+                </span>
+            </div>
+            <a href="/edit/{{ task.id }}" class="text-dark text-decoration-none fw-bold d-block mb-1 fs-6">{{ task.title }}</a>
+            <div class="small text-muted mb-3 text-truncate">{{ task.description or 'ללא תיאור' }}</div>
+            
+            <div class="d-flex justify-content-between align-items-center border-top pt-2 mt-2">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width: 28px; height: 28px; font-size: 11px;">
+                        {% if task.assignee %}{{ task.assignee.username[:1]|upper }}{% else %}?{% endif %}
+                    </div>
+                    <span class="small fw-semibold text-dark">{{ task.assignee.username if task.assignee else 'לא שויך' }}</span>
+                </div>
+                
+                <!-- One-Tap Complete Button (Mobile UX) -->
+                {% set can_edit_this = current_user.role == 'admin' or (current_user.role == 'manager' and task.assigned_to_id in current_user.visible_user_ids()) or task.assigned_to_id == current_user.id %}
+                {% if can_edit_this %}
+                    {% if task.status != 'DONE' %}
+                    <button onclick="mobileCompleteTask({{ task.id }}, this)" class="btn btn-sm btn-success rounded-pill fw-bold px-3 shadow-sm"><i class="bi bi-check2-circle"></i> בוצע</button>
+                    {% else %}
+                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1 rounded-pill"><i class="bi bi-check-circle-fill"></i> הושלם</span>
+                    {% endif %}
+                {% else %}
+                    {% if task.status == 'DONE' %}
+                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1 rounded-pill"><i class="bi bi-check-circle-fill"></i> הושלם</span>
+                    {% elif task.status == 'IN_PROGRESS' %}
+                        <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 px-2 py-1"><i class="bi bi-hourglass-split"></i> בתהליך</span>
+                    {% else %}
+                        <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2 py-1"><i class="bi bi-circle"></i> לביצוע</span>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center py-5 bg-white rounded-4 shadow-sm">
+        <div class="text-muted mb-2" style="font-size: 40px;">📝</div>
+        <h5 class="fw-bold text-dark">אין משימות</h5>
+        <p class="text-muted small">נראה שהכל בוצע או שאין משימות בסינון הנוכחי.</p>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Phase 4.6: Desktop Table View -->
+<div class="card-modern shadow-sm border-0 bg-white d-none d-md-block">
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0" style="min-width: 800px;">
             <thead class="table-light text-muted small text-uppercase">
@@ -218,7 +284,9 @@
                         {% endif %}
                     </td>
                     <td>
-                        {% if task.priority == 'HIGH' %} 
+                        {% if task.priority == 'CRITICAL' %} 
+                            <span class="text-dark fw-bold small"><i class="bi bi-shield-fill-exclamation"></i> קריטית</span>
+                        {% elif task.priority == 'HIGH' %} 
                             <span class="text-danger fw-bold small"><i class="bi bi-arrow-up-circle-fill"></i> גבוהה</span>
                         {% elif task.priority == 'MEDIUM' %} 
                             <span class="text-warning fw-bold small" style="color: #d97706 !important;"><i class="bi bi-dash-circle-fill"></i> בינונית</span>
@@ -320,6 +388,7 @@
                                 <option value="LOW">נמוכה</option>
                                 <option value="MEDIUM">בינונית</option>
                                 <option value="HIGH">גבוהה</option>
+                                <option value="CRITICAL">קריטית</option>
                             </select>
                         </div>
                     </div>
@@ -458,6 +527,46 @@
         {% endfor %}
     ];
     {% endif %}
+
+    // Phase 4.6: One-Tap Complete for Mobile
+    function mobileCompleteTask(taskId, btnEl) {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        const originalHtml = btnEl.innerHTML;
+        btnEl.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        btnEl.disabled = true;
+
+        fetch(`/update_status/${taskId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ status: 'DONE' })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                btnEl.outerHTML = '<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1 rounded-pill"><i class="bi bi-check-circle-fill"></i> הושלם</span>';
+                if (typeof confetti !== 'undefined') confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+                if (typeof createToast === 'function') createToast('המשימה סומנה כבוצעה!', 'success');
+            } else {
+                btnEl.innerHTML = originalHtml;
+                btnEl.disabled = false;
+                if (data.warning) {
+                    if (confirm(data.message)) {
+                        // Force complete
+                        fetch(`/update_status/${taskId}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                            body: JSON.stringify({ status: 'DONE', force_complete: true })
+                        }).then(() => window.location.reload());
+                    }
+                } else {
+                    if (typeof createToast === 'function') createToast('שגיאה בעדכון', 'danger');
+                }
+            }
+        }).catch(() => {
+            btnEl.innerHTML = originalHtml;
+            btnEl.disabled = false;
+        });
+    }
 </script>
 
 <script>
