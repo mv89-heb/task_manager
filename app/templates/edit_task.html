@@ -48,6 +48,7 @@
             <option value="LOW" {% if task.priority=="LOW" %}selected{% endif %}>נמוכה</option>
             <option value="MEDIUM" {% if task.priority=="MEDIUM" %}selected{% endif %}>בינונית</option>
             <option value="HIGH" {% if task.priority=="HIGH" %}selected{% endif %}>גבוהה</option>
+            <option value="CRITICAL" {% if task.priority=="CRITICAL" %}selected{% endif %}>קריטית</option>
         </select>
     </div>
     <div class="col-md-4 mb-3">
@@ -62,13 +63,17 @@
 </div>
 
 <div class="row">
-    <div class="col-md-6 mb-3">
+    <div class="col-md-4 mb-3">
         <label class="form-label small text-muted"><i class="bi bi-calendar-event"></i> תאריך יעד:</label>
         <input type="date" name="due_date" class="form-control" value="{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '' }}">
     </div>
-    <div class="col-md-6 mb-3">
+    <div class="col-md-4 mb-3">
         <label class="form-label small text-muted"><i class="bi bi-clock-history"></i> זמן מוערך (דקות):</label>
         <input type="number" name="estimated_minutes" class="form-control" value="{{ task.estimated_minutes or 0 }}" min="0">
+    </div>
+    <div class="col-md-4 mb-3">
+        <label class="form-label small text-muted"><i class="bi bi-tag"></i> סוג משימה (SLA):</label>
+        <input type="text" name="task_type" class="form-control" value="{{ task.task_type or '' }}" placeholder="למשל: תקלה, תמיכה">
     </div>
 </div>
 
@@ -247,7 +252,6 @@ document.addEventListener("DOMContentLoaded", function() {
                 `;
                 container.appendChild(div);
                 
-                // Attach event listener to new checkbox
                 div.querySelector('.checklist-toggle').addEventListener('change', function() {
                     const itemId = this.dataset.id;
                     const label = document.getElementById(`lbl_${itemId}`);
