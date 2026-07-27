@@ -193,7 +193,7 @@ def admin_edit_user(user_id):
     if current_user.role not in (ROLE_ADMIN, ROLE_MANAGER):
         return redirect(url_for('tasks.index'))
 
-    user_to_edit = User.query.get_or_404(user_id)
+    user_to_edit = db.get_or_404(User, user_id)
 
     if not current_user.can_manage_user(user_to_edit):
         flash("אינך רשאי לערוך משתמש זה.", "danger")
@@ -290,7 +290,7 @@ def delete_user(user_id):
     if current_user.role not in (ROLE_ADMIN, ROLE_MANAGER):
         return redirect(url_for('tasks.index'))
 
-    user_to_delete = User.query.get_or_404(user_id)
+    user_to_delete = db.get_or_404(User, user_id)
 
     if user_to_delete.username == 'mv':
         flash("אי אפשר למחוק את חשבון המנהל הראשי!", "danger")
@@ -361,7 +361,7 @@ def delete_department(dept_id):
     if current_user.role != ROLE_ADMIN:
         return redirect(url_for('tasks.index'))
 
-    dept = Department.query.get_or_404(dept_id)
+    dept = db.get_or_404(Department, dept_id)
     if User.query.filter_by(department_id=dept.id).count() > 0:
         flash("לא ניתן למחוק מחלקה שיש בה משתמשים. יש להעביר אותם למחלקה אחרת קודם.", "danger")
     else:
@@ -421,7 +421,7 @@ def delete_template(template_id):
     if current_user.role not in (ROLE_ADMIN, ROLE_MANAGER):
         return redirect(url_for('tasks.index'))
 
-    template = TaskTemplate.query.get_or_404(template_id)
+    template = db.get_or_404(TaskTemplate, template_id)
     if current_user.role == ROLE_MANAGER and template.department_id != current_user.department_id:
         flash("אינך רשאי למחוק תבנית זו.", "danger")
         return redirect(url_for("dashboard.admin_templates"))
@@ -598,7 +598,7 @@ def toggle_automation_rule(rule_id):
     if current_user.role != ROLE_ADMIN:
         return redirect(url_for('tasks.index'))
 
-    rule = AutomationRule.query.get_or_404(rule_id)
+    rule = db.get_or_404(AutomationRule, rule_id)
     automation_service.update_rule(current_user, rule, is_active=not rule.is_active)
     flash(f"הכלל '{rule.name}' {'הופעל' if rule.is_active else 'הושבת'}.", "success")
     return redirect(url_for("dashboard.admin_automations"))
@@ -610,7 +610,7 @@ def delete_automation_rule(rule_id):
     if current_user.role != ROLE_ADMIN:
         return redirect(url_for('tasks.index'))
 
-    rule = AutomationRule.query.get_or_404(rule_id)
+    rule = db.get_or_404(AutomationRule, rule_id)
     rule_name = rule.name
     automation_service.delete_rule(current_user, rule)
     flash(f"הכלל '{rule_name}' נמחק.", "success")
