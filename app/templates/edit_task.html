@@ -61,8 +61,16 @@
     </div>
 </div>
 
-<label class="form-label small text-muted"><i class="bi bi-calendar-event"></i> תאריך יעד:</label>
-<input type="date" name="due_date" class="form-control mb-3" value="{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '' }}">
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label class="form-label small text-muted"><i class="bi bi-calendar-event"></i> תאריך יעד:</label>
+        <input type="date" name="due_date" class="form-control" value="{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '' }}">
+    </div>
+    <div class="col-md-6 mb-3">
+        <label class="form-label small text-muted"><i class="bi bi-clock-history"></i> זמן מוערך (דקות):</label>
+        <input type="number" name="estimated_minutes" class="form-control" value="{{ task.estimated_minutes or 0 }}" min="0">
+    </div>
+</div>
 
 <label class="form-label small text-muted"><i class="bi bi-person-check"></i> אחראי (הקצאה):</label>
 <select name="assigned_to_id" class="form-select mb-3">
@@ -72,6 +80,29 @@
         </option>
     {% endfor %}
 </select>
+
+<!-- Phase 3: Sub Tasks & Dependencies -->
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label class="form-label small text-muted"><i class="bi bi-diagram-2"></i> משימת-אב (Sub-task of):</label>
+        <select name="parent_task_id" class="form-select">
+            <option value="">-- אין משימת-אב --</option>
+            {% for t in all_tasks %}
+                <option value="{{ t.id }}" {% if task.parent_task_id == t.id %}selected{% endif %}>{{ t.title }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-6 mb-3">
+        <label class="form-label small text-muted"><i class="bi bi-link-45deg"></i> תלויה במשימות (Dependencies):</label>
+        <select name="dependency_ids" class="form-select" multiple size="3">
+            {% set dep_ids = task.dependencies.all() | map(attribute='id') | list %}
+            {% for t in all_tasks %}
+                <option value="{{ t.id }}" {% if t.id in dep_ids %}selected{% endif %}>{{ t.title }}</option>
+            {% endfor %}
+        </select>
+        <div class="form-text" style="font-size: 11px;">החזק Ctrl לבחירה מרובה</div>
+    </div>
+</div>
 
 <label class="form-label small text-muted"><i class="bi bi-image"></i> תמונה מצורפת (עד 2MB, JPEG/PNG/WEBP/GIF):</label>
 {% if task.image_data %}
@@ -85,7 +116,7 @@
 {% endif %}
 <input type="file" name="image" accept="image/jpeg,image/png,image/webp,image/gif" class="form-control mb-4">
 
-<button class="btn btn-primary w-100 fw-semibold"><i class="bi bi-check2"></i> שמור שינויים</button>
+<button type="submit" class="btn btn-primary w-100 fw-semibold"><i class="bi bi-check2"></i> שמור שינויים</button>
 <a href="javascript:history.back()" class="btn btn-link w-100 mt-2 text-muted">ביטול וחזרה</a>
 
 </form>
@@ -97,6 +128,27 @@
 </form>
 {% endif %}
 
+</div>
+
+<!-- Phase 3: Checklist Section -->
+<div class="card-modern p-4 shadow-sm mb-4">
+    <h6 class="fw-bold mb-3"><i class="bi bi-ui-checks text-primary"></i> רשימת תיוג (Checklist)</h6>
+    <div id="checklistContainer" class="mb-3">
+        {% for item in task.checklist_items %}
+        <div class="form-check d-flex align-items-center mb-2">
+            <input class="form-check-input me-2 checklist-toggle" type="checkbox" data-id="{{ item.id }}" id="chk_{{ item.id }}" {% if item.is_done %}checked{% endif %}>
+            <label class="form-check-label small flex-grow-1 {% if item.is_done %}text-decoration-line-through text-muted{% endif %}" for="chk_{{ item.id }}" id="lbl_{{ item.id }}">
+                {{ item.text }}
+            </label>
+        </div>
+        {% else %}
+        <p class="text-muted small" id="emptyChecklistMsg">אין פריטים ברשימה.</p>
+        {% endfor %}
+    </div>
+    <div class="input-group input-group-sm">
+        <input type="text" id="newChecklistText" class="form-control" placeholder="פריט חדש לרשימה...">
+        <button type="button" class="btn btn-outline-primary" id="addChecklistBtn"><i class="bi bi-plus"></i> הוסף</button>
+    </div>
 </div>
 
 <div class="card-modern p-4 shadow-sm mb-4">
@@ -130,5 +182,96 @@
 
 </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    
+    // Checklist Toggle
+    document.querySelectorAll('.checklist-toggle').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const itemId = this.dataset.id;
+            const label = document.getElementById(`lbl_${itemId}`);
+            
+            fetch(`/checklist/${itemId}/toggle`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if(data.success) {
+                    if(data.is_done) {
+                        label.classList.add('text-decoration-line-through', 'text-muted');
+                    } else {
+                        label.classList.remove('text-decoration-line-through', 'text-muted');
+                    }
+                }
+            });
+        });
+    });
+
+    // Checklist Add
+    const addBtn = document.getElementById('addChecklistBtn');
+    const newText = document.getElementById('newChecklistText');
+    const container = document.getElementById('checklistContainer');
+    const emptyMsg = document.getElementById('emptyChecklistMsg');
+
+    addBtn.addEventListener('click', function() {
+        const text = newText.value.trim();
+        if(!text) return;
+        
+        fetch(`/task/{{ task.id }}/checklist`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({text: text})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if(data.success) {
+                if(emptyMsg) emptyMsg.style.display = 'none';
+                newText.value = '';
+                
+                const div = document.createElement('div');
+                div.className = 'form-check d-flex align-items-center mb-2';
+                div.innerHTML = `
+                    <input class="form-check-input me-2 checklist-toggle" type="checkbox" data-id="${data.item_id}" id="chk_${data.item_id}">
+                    <label class="form-check-label small flex-grow-1" for="chk_${data.item_id}" id="lbl_${data.item_id}">
+                        ${data.text}
+                    </label>
+                `;
+                container.appendChild(div);
+                
+                // Attach event listener to new checkbox
+                div.querySelector('.checklist-toggle').addEventListener('change', function() {
+                    const itemId = this.dataset.id;
+                    const label = document.getElementById(`lbl_${itemId}`);
+                    fetch(`/checklist/${itemId}/toggle`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }
+                    })
+                    .then(r => r.json())
+                    .then(d => {
+                        if(d.is_done) label.classList.add('text-decoration-line-through', 'text-muted');
+                        else label.classList.remove('text-decoration-line-through', 'text-muted');
+                    });
+                });
+            }
+        });
+    });
+
+    newText.addEventListener('keypress', function(e) {
+        if(e.key === 'Enter') {
+            e.preventDefault();
+            addBtn.click();
+        }
+    });
+});
+</script>
 
 {% endblock %}
