@@ -255,7 +255,7 @@ def public_report():
             flash("יש לתאר בקצרה מהי התקלה.", "danger")
             return render_template("report.html", departments=departments)
 
-        department = Department.query.get(int(department_id)) if department_id else None
+        department = db.session.get(Department, int(department_id)) if department_id else None
 
         # מנסים לשייך משימה למנהל התחום הרלוונטי; אם אין כזה, נופלים חזרה לכל מנהלי המערכת
         assigned_to_id = None
@@ -392,7 +392,7 @@ def index():
         db.session.commit()
 
         if task.assigned_to_id and task.assigned_to_id != current_user.id:
-            assignee_obj = User.query.get(task.assigned_to_id)
+            assignee_obj = db.session.get(User, task.assigned_to_id)
             email_ok = notify_with_email(
                 assignee_obj,
                 f"{current_user.username} הקצה לך משימה חדשה: \"{task.title}\"",
@@ -598,7 +598,7 @@ def edit(id):
                        link=f"/edit/{task.id}", icon="bi-check-circle")
 
         if task.assigned_to_id != previous_assignee_id and task.assigned_to_id and task.assigned_to_id != current_user.id:
-            new_assignee_obj = User.query.get(task.assigned_to_id)
+            new_assignee_obj = db.session.get(User, task.assigned_to_id)
             email_ok = notify_with_email(
                 new_assignee_obj,
                 f"{current_user.username} הקצה לך משימה: \"{task.title}\"",
@@ -820,7 +820,7 @@ def test_email():
 
     # --- שלב 1: טעינת משתמש ---
     try:
-        user = User.query.get(current_user.id)
+        user = db.session.get(User, current_user.id)
     except Exception:
         current_app.logger.exception(f"[mail-test] שלב טעינת משתמש נכשל - user_id={current_user.id}")
         return jsonify({"success": False, "message": "מסד נתונים לא זמין - נסה שוב בעוד רגע."}), 500
@@ -1036,7 +1036,7 @@ def send_bulk_message():
     if not send_email and not send_whatsapp:
         return jsonify({"success": False, "message": "יש לבחור לפחות ערוץ שליחה אחד (מייל / וואטסאפ)."}), 400
 
-    valid_recipients = [User.query.get(uid) for uid in recipient_ids]
+    valid_recipients = [db.session.get(User, uid) for uid in recipient_ids]
     valid_recipients = [r for r in valid_recipients if r]
     notified_count = len(valid_recipients)
 
@@ -1077,7 +1077,7 @@ def bulk_reassign_tasks():
     if new_assignee_id not in current_user.visible_user_ids():
         return jsonify({"success": False, "message": "אינך רשאי להקצות משימות למשתמש זה."}), 403
 
-    new_assignee = User.query.get(new_assignee_id)
+    new_assignee = db.session.get(User, new_assignee_id)
     if not new_assignee:
         return jsonify({"success": False, "message": "המשתמש הנבחר לא נמצא."}), 400
 
@@ -1087,7 +1087,7 @@ def bulk_reassign_tasks():
     for tid in raw_task_ids:
         if not tid.isdigit():
             continue
-        task = Task.query.get(int(tid))
+        task = db.session.get(Task, int(tid))
         # הגנה נוספת: כל משימה נבדקת בנפרד - לא ניתן לעקוף ולעדכן משימה שמחוץ להיקף ההרשאה
         if not task or not can_touch_task(current_user, task):
             skipped_count += 1
@@ -1143,7 +1143,7 @@ def bulk_delete_tasks():
     for tid in raw_task_ids:
         if not tid.isdigit():
             continue
-        task = Task.query.get(int(tid))
+        task = db.session.get(Task, int(tid))
         if not task:
             continue
         deleted_titles.append(task.title)
