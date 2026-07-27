@@ -1,5 +1,6 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
+from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
+from sqlalchemy.orm import joinedload
 from app.models.task import Task
 from app.models.user import User, ROLE_ADMIN, ROLE_MANAGER, ROLE_EMPLOYEE, ROLE_LABELS, validate_password_strength
 from app.models.department import Department
@@ -18,14 +19,15 @@ def dashboard():
     today = date.today()
     now = datetime.utcnow()
 
-    # היקף הנתונים בדשבורד תלוי בתפקיד: מנהל מערכת רואה הכל, מנהל תחום רואה
-    # את המחלקה שלו, ועובד רואה רק את המשימות שהוקצו לו.
+    # Phase 4.7 Performance: טעינה מוקדמת של משתמשים כדי למנוע N+1 בחישובי עומסים והצגת נתונים
+    base_query = Task.query.options(joinedload(Task.assignee))
+
     if current_user.role == ROLE_ADMIN:
-        tasks = Task.query.all()
+        tasks = base_query.all()
     elif current_user.role == ROLE_MANAGER:
-        tasks = Task.query.filter(Task.assigned_to_id.in_(current_user.visible_user_ids())).all()
+        tasks = base_query.filter(Task.assigned_to_id.in_(current_user.visible_user_ids())).all()
     else:
-        tasks = Task.query.filter_by(assigned_to_id=current_user.id).all()
+        tasks = base_query.filter_by(assigned_to_id=current_user.id).all()
 
     total = len(tasks)
     
@@ -40,7 +42,7 @@ def dashboard():
     medium_priority = len([t for t in open_tasks if t.priority == "MEDIUM"])
     low_priority = len([t for t in open_tasks if t.priority == "LOW"])
     
-    # חישוב עומסי עבודה כלליים (Workload Analytics) בהתבסס על הזמן המוערך (Phase 3+4)
+    # חישוב עומסי עבודה כלליים (Workload Analytics) בהתבסס על הזמן המוערך
     total_estimated_minutes = sum([t.estimated_minutes for t in open_tasks if t.estimated_minutes])
     done_estimated_minutes = sum([t.estimated_minutes for t in done_tasks if t.estimated_minutes])
 
@@ -48,7 +50,6 @@ def dashboard():
     urgent_list = [t for t in open_tasks if (t.priority == "HIGH" or t.priority == "CRITICAL" or (t.due_date and t.due_date < today))]
     urgent_list = sorted(urgent_list, key=lambda x: x.due_date or date.max)[:5]
 
-    # מספר ימי האיחור בפועל לכל משימה (במקום דגל בינארי "באיחור/לא") - עוזר לתעדף
     for t in urgent_list:
         t.days_overdue = (today - t.due_date).days if (t.due_date and t.due_date < today) else 0
 
@@ -64,7 +65,7 @@ def dashboard():
     # ===============================
     team_workload = workload_service.get_team_workload(current_user)
 
-    # פירוט ביצועים לפי מחלקה - רלוונטי רק למנהל מערכת (תמונה ארגונית מלאה)
+    # פירוט ביצועים לפי מחלקה
     department_stats = []
     unassigned_dept_count = 0
     if current_user.role == ROLE_ADMIN:
@@ -78,7 +79,6 @@ def dashboard():
             dept_total = len(dept_tasks)
             dept_done = len([t for t in dept_tasks if t.status == "DONE"])
             
-            # עומס עבודה פתוח ברמת מחלקה
             dept_open_minutes = sum([t.estimated_minutes for t in dept_tasks if t.status != "DONE" and t.estimated_minutes])
             
             department_stats.append({
@@ -91,7 +91,6 @@ def dashboard():
                 'completion_percent': int((dept_done / dept_total * 100)) if dept_total > 0 else 0,
             })
 
-        # משתמשים (וכפועל יוצא, המשימות שלהם) שעדיין לא שויכו לאף מחלקה
         unassigned_ids = all_users_by_dept.get(None, [])
         unassigned_dept_count = len([t for t in tasks if t.assigned_to_id in unassigned_ids])
 
@@ -120,8 +119,8 @@ def admin_panel():
         flash("אין לך הרשאות לגשת לעמוד זה.", "danger")
         return redirect(url_for('tasks.index'))
 
-    # מנהל מערכת רואה את כולם; מנהל תחום רואה רק את חברי המחלקה שלו
-    visible_users = current_user.visible_users_query().order_by(User.id.desc()).all()
+    # Phase 4.7 Performance: טעינת מחלקות מראש למניעת N+1
+    visible_users = current_user.visible_users_query().options(joinedload(User.department)).order_by(User.id.desc()).all()
 
     user_stats = []
     for u in visible_users:
@@ -145,7 +144,6 @@ def admin_add_user():
         return redirect(url_for('tasks.index'))
 
     departments = Department.query.order_by(Department.name).all()
-    # מנהל תחום יכול ליצור עובדים רק במחלקה שלו; מנהל מערכת רואה את כל המחלקות
     assignable_departments = departments if current_user.role == ROLE_ADMIN else [
         d for d in departments if d.id == current_user.department_id
     ]
@@ -169,7 +167,6 @@ def admin_add_user():
             flash(error_msg, "danger")
             return redirect(url_for("dashboard.admin_add_user"))
 
-        # מנהל תחום מוגבל תמיד למחלקה שלו, ולא יכול לבחור מחלקה אחרת
         if current_user.role == ROLE_MANAGER:
             department_id = current_user.department_id
 
@@ -239,7 +236,6 @@ def admin_edit_user(user_id):
         manager_id = request.form.get("manager_id") or None
 
         if current_user.role == ROLE_MANAGER:
-            # מנהל תחום לא יכול להעביר עובד למחלקה אחרת
             department_id = current_user.department_id
 
         old_role = user_to_edit.role
@@ -525,8 +521,7 @@ def audit_log():
 
 
 # =========================================================
-# 🤖 אוטומציות (Workflow Automation) - admin בלבד
-# Phase 4.1: שודרג לקבלת JSON מתקדם התומך במספר חוקים (Visual Builder)
+# 🤖 אוטומציות (Workflow Automation)
 # =========================================================
 
 @bp.route("/admin/automations", methods=["GET", "POST"])
@@ -556,8 +551,6 @@ def admin_automations():
             automation_service.create_rule(
                 current_user, name, trigger_event, conditions, actions, department_id=department_id
             )
-            # טריק אלגנטי: מגדיר את ה-Flash כבר בשרת לפני החזרת ה-JSON. 
-            # כשהדפדפן יבצע window.location.reload() לאחר ה-Success, הוא כבר ימשוך את ההודעה הרגילה.
             flash(f"הכלל '{name}' נוצר בהצלחה.", "success")
             return jsonify({"success": True})
             
