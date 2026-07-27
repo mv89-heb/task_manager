@@ -16,7 +16,7 @@
             <select name="user_id" class="form-select form-select-sm">
                 <option value="">-- כל המשתמשים --</option>
                 {% for u in users %}
-                <option value="{{ u.id }}" {% if current_filters.get('user_id') == str(u.id) %}selected{% endif %}>{{ u.username }}</option>
+                <option value="{{ u.id }}" {% if current_filters.get('user_id') == u.id|string %}selected{% endif %}>{{ u.username }}</option>
                 {% endfor %}
             </select>
         </div>
