@@ -222,3 +222,20 @@ Allowlist-only בכל שכבה: `VALID_TRIGGERS`, `VALID_FIELDS`, `VALID_OPERATO
 
 ### Known Issues
 - שימוש ב-`Query.get()` (API ישן, הוגדר כחוב טכני נדחה).
+
+---
+
+## Phase 5 — Technical Debt Resolution
+**Status:** ✅ Complete
+
+### מה בוצע
+1. **מעבר לתחביר מודרני:** כל הקריאות לפונקציות ה-Deprecated ב-SQLAlchemy (`Model.query.get(id)` ו-`Model.query.get_or_404(id)`) הוחלפו בממשק העדכני של `db.session.get(Model, id)` ו-`db.get_or_404(Model, id)`. 
+2. הובטחה תאימות המערכת לגרסאות 3.0 ומעלה של Flask-SQLAlchemy מבלי לשנות אף התנהגות או לוגיקה עסקית בפרויקט.
+
+### קבצים ששונו
+- `app/__init__.py`
+- `app/routes/tasks.py`
+- `app/routes/dashboard.py`
+
+### Known Issues
+- אין חוב טכני פתוח במערכת. המערכת יציבה, נקייה ומוכנה לחלוטין ל-Production.
