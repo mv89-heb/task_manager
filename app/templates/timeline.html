@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card-modern shadow-sm" style="border-top: 3px solid var(--brand-accent);">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h5 class="mb-0 fw-bold"><i class="bi bi-stream text-primary me-2"></i> ציר זמן (Timeline)</h5>
+                <span class="badge bg-light text-dark border"><i class="bi bi-info-circle"></i> מציג משימות פתוחות עם תאריך יעד</span>
+            </div>
+
+            {% if not tasks %}
+                <div class="text-center text-muted p-5">
+                    <i class="bi bi-calendar-x fs-1 d-block mb-3 opacity-50"></i>
+                    אין משימות פעילות עם תאריך יעד להצגה על ציר הזמן.
+                </div>
+            {% else %}
+                <div class="timeline-container position-relative overflow-auto" style="min-height: 300px;">
+                    <!-- כותרות ציר -->
+                    <div class="d-flex border-bottom pb-2 mb-3 text-muted small fw-semibold">
+                        <div class="col-3 ps-2">משימה (וזמן מוערך)</div>
+                        <div class="col-9 d-flex justify-content-between px-2">
+                            <span>תאריך יצירה</span>
+                            <span>תאריך יעד</span>
+                        </div>
+                    </div>
+
+                    {% for task in tasks %}
+                    <div class="row align-items-center mb-3">
+                        <!-- שם המשימה -->
+                        <div class="col-3 text-truncate ps-2" title="{{ task.title }}">
+                            <a href="{{ url_for('tasks.edit', id=task.id) }}" class="text-decoration-none fw-semibold" style="color: var(--brand-navy);">
+                                {{ task.title }}
+                            </a>
+                            <div class="text-muted" style="font-size: 11px;">
+                                {% if task.estimated_minutes %}
+                                    <i class="bi bi-clock"></i> {{ task.estimated_minutes }} דק'
+                                {% else %}
+                                    <i class="bi bi-clock opacity-50"></i> לא הוערך
+                                {% endif %}
+                                {% if task.parent_task %}
+                                    | <i class="bi bi-diagram-2"></i> תת-משימה
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- פס התצוגה (מייצג את הזמן מהיצירה ליעד) -->
+                        <div class="col-9 pe-3">
+                            <div class="progress position-relative shadow-sm" style="height: 28px; border-radius: 6px; background-color: var(--brand-blue-light);">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 100%;" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100">
+                                    <div class="d-flex justify-content-between w-100 px-3 align-items-center text-white fw-medium" style="font-size: 12px; position: absolute; left: 0; right: 0;">
+                                        <!-- הגנה מפני משימות ללא תאריך יצירה במסד הנתונים -->
+                                        <span>{{ task.created_at.strftime('%d/%m/%Y') if task.created_at else 'לא מוגדר' }}</span>
+                                        <span>{{ task.due_date.strftime('%d/%m/%Y') if task.due_date else '' }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- הצגת תלויות בצורה בטוחה יותר נגד שגיאות ORM ב-Jinja -->
+                            {% set deps = task.dependencies.all() if task.dependencies else [] %}
+                            {% if deps %}
+                            <div class="text-danger mt-1 fw-medium" style="font-size: 11px;">
+                                <i class="bi bi-link-45deg"></i> ממתינה להשלמת: 
+                                {% for dep in deps %}
+                                    <a href="/edit/{{ dep.id }}" class="text-danger text-decoration-underline">{{ dep.title }}</a>{% if not loop.last %}, {% endif %}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
