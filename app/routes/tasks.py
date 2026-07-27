@@ -3,7 +3,7 @@ import os
 import base64
 import io
 from flask_login import login_user, logout_user, login_required, current_user
-from app.models.task import Task, RECURRENCE_NONE, RECURRENCE_DAILY, RECURRENCE_WEEKLY, RECURRENCE_MONTHLY, MAX_IMAGE_SIZE_BYTES
+from app.models.task import Task, TaskChecklistItem, RECURRENCE_NONE, RECURRENCE_DAILY, RECURRENCE_WEEKLY, RECURRENCE_MONTHLY, MAX_IMAGE_SIZE_BYTES
 from app.models.user import User, validate_password_strength
 from app.models.department import Department
 from app.models.comment import TaskComment
@@ -440,9 +440,19 @@ def index():
 @bp.route("/done/<int:id>")
 @login_required
 def done(id):
-    task = Task.query.get_or_404(id)
+    task = db.session.get(Task, id)
+    if not task:
+        flash("המשימה לא נמצאה.", "danger")
+        return redirect(url_for("tasks.index"))
+        
     if not can_touch_task(current_user, task):
         flash("אינך רשאי לעדכן משימה זו.", "danger")
+        return redirect(url_for("tasks.index"))
+        
+    # בדיקת תלויות חסרות (Soft Block)
+    uncompleted_deps = [dep for dep in task.dependencies if dep.status != "DONE"]
+    if uncompleted_deps and not request.args.get("force"):
+        flash(f"לא ניתן לסיים. משימה זו תלויה במשימות שטרם הושלמו.", "warning")
         return redirect(url_for("tasks.index"))
 
     was_done_already = task.status == "DONE"
@@ -460,7 +470,7 @@ def done(id):
 @bp.route("/delete/<int:id>", methods=["POST"])
 @login_required
 def delete(id):
-    task = Task.query.get_or_404(id)
+    task = db.session.get(Task, id)
 
     def _redirect_back():
         # חוזרים לעמוד שממנו הגיעה בקשת המחיקה (למשל לשונית "תקלות מדווחות"),
@@ -470,7 +480,7 @@ def delete(id):
             return redirect(ref)
         return redirect(url_for("tasks.index"))
 
-    if not can_create_tasks(current_user) or not can_touch_task(current_user, task):
+    if not task or not can_create_tasks(current_user) or not can_touch_task(current_user, task):
         flash("אין לך הרשאה למחוק משימה זו.", "danger")
         return _redirect_back()
 
@@ -484,7 +494,11 @@ def delete(id):
 @bp.route("/edit/<int:id>", methods=["GET", "POST"])
 @login_required
 def edit(id):
-    task = Task.query.get_or_404(id)
+    task = db.session.get(Task, id)
+    if not task:
+        flash("המשימה לא נמצאה.", "danger")
+        return redirect(url_for("tasks.index"))
+        
     if not can_create_tasks(current_user) or not can_touch_task(current_user, task):
         flash("אין לך הרשאה לערוך משימה זו. צפייה בלבד.", "danger")
         return redirect(url_for("tasks.index"))
@@ -520,6 +534,23 @@ def edit(id):
                 pass
         else:
             task.due_date = None
+
+        # Phase 3 Fields
+        task.estimated_minutes = int(request.form.get("estimated_minutes") or 0)
+        
+        parent_task_id = request.form.get("parent_task_id")
+        if parent_task_id and parent_task_id.isdigit():
+            task.parent_task_id = int(parent_task_id)
+        else:
+            task.parent_task_id = None
+            
+        dependency_ids = request.form.getlist("dependency_ids")
+        task.dependencies = []
+        if dependency_ids:
+            deps = Task.query.filter(Task.id.in_(dependency_ids)).all()
+            for dep in deps:
+                if dep.id != task.id: # Prevent self-dependency
+                    task.dependencies.append(dep)
 
         # תמונה מצורפת (אופציונלי) - נשמרת כ-base64 ישירות ב-DB
         uploaded_file = request.files.get("image")
@@ -564,19 +595,20 @@ def edit(id):
             if new_assignee_obj.email and not email_ok:
                 flash(f"⚠️ המשימה עודכנה, אבל שליחת המייל ל-{new_assignee_obj.username} נכשלה - בדוק את הגדרות SMTP.", "danger")
 
-        flash("השינויים נשמרו המשימה עודכנה.", "success")
+        flash("השינויים נשמרו והמשימה עודכנה.", "success")
         return redirect(url_for("tasks.index"))
 
     assignable_users = current_user.visible_users_query().order_by(User.username).all()
     comments = task.comments.order_by(TaskComment.created_at.asc()).all()
-    return render_template("edit_task.html", task=task, assignable_users=assignable_users, comments=comments)
+    all_other_tasks = visible_task_query(current_user).filter(Task.id != task.id).all()
+    return render_template("edit_task.html", task=task, assignable_users=assignable_users, comments=comments, all_tasks=all_other_tasks)
 
 
 @bp.route("/task/<int:id>/comment", methods=["POST"])
 @login_required
 def add_comment(id):
-    task = Task.query.get_or_404(id)
-    if not can_touch_task(current_user, task):
+    task = db.session.get(Task, id)
+    if not task or not can_touch_task(current_user, task):
         flash("אינך רשאי להגיב על משימה זו.", "danger")
         return redirect(url_for("tasks.index"))
 
@@ -594,6 +626,50 @@ def add_comment(id):
         flash("התגובה נוספה.", "success")
 
     return redirect(url_for("tasks.edit", id=task.id))
+
+
+# =========================================================
+# Phase 3: Checklists
+# =========================================================
+
+@bp.route("/task/<int:task_id>/checklist", methods=["POST"])
+@login_required
+def add_checklist_item(task_id):
+    task = db.session.get(Task, task_id)
+    if not task or not can_touch_task(current_user, task):
+        return jsonify({"error": "Unauthorized"}), 403
+        
+    data = request.json
+    text = data.get('text')
+    
+    if text:
+        item = TaskChecklistItem(task_id=task.id, text=text)
+        db.session.add(item)
+        db.session.commit()
+        return jsonify({"success": True, "item_id": item.id, "text": item.text})
+    return jsonify({"error": "Invalid data"}), 400
+
+@bp.route("/checklist/<int:item_id>/toggle", methods=["POST"])
+@login_required
+def toggle_checklist_item(item_id):
+    item = db.session.get(TaskChecklistItem, item_id)
+    if not item or not can_touch_task(current_user, item.task):
+        return jsonify({"error": "Unauthorized"}), 403
+        
+    item.is_done = not item.is_done
+    db.session.commit()
+    return jsonify({"success": True, "is_done": item.is_done})
+
+
+# =========================================================
+# Phase 3: Timeline
+# =========================================================
+
+@bp.route("/timeline")
+@login_required
+def timeline():
+    tasks = visible_task_query(current_user).filter(Task.due_date.isnot(None), Task.status != 'DONE', Task.source != 'public').order_by(Task.created_at).all()
+    return render_template('timeline.html', tasks=tasks)
 
 
 # =========================================================
@@ -645,17 +721,31 @@ def kanban():
 
     return render_template("kanban.html", todo=todo, in_progress=in_progress, done=done)
 
+
 @bp.route("/update_status/<int:id>", methods=["POST"])
 @login_required
 def update_status(id):
-    task = Task.query.get(id)
+    task = db.session.get(Task, id)
     if task and not can_touch_task(current_user, task):
         task = None
 
     if task:
         data = request.get_json()
         new_status = data.get("status")
+        force_complete = data.get("force_complete", False)
+        
         if new_status in ["TODO", "IN_PROGRESS", "DONE"]:
+            # Soft Dependency Block
+            if new_status == 'DONE' and not force_complete:
+                uncompleted_deps = [dep.title for dep in task.dependencies if dep.status != 'DONE']
+                if uncompleted_deps:
+                    return jsonify({
+                        "success": False,
+                        "warning": True, 
+                        "message": f"תלויות שטרם הושלמו: {', '.join(uncompleted_deps)}. להשלים למרות זאת?",
+                        "uncompleted_deps": uncompleted_deps
+                    }), 200
+
             was_done_already = task.status == "DONE"
             status_changed = new_status != task.status
             task.status = new_status
