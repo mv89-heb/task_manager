@@ -6,7 +6,7 @@ from app.models.department import Department
 from app.models.task_template import TaskTemplate
 from app.models.audit_log import log_audit
 from app.models.automation import AutomationRule, AutomationLog
-from app.services import automation_service
+from app.services import automation_service, workload_service
 from app import db
 from datetime import date, datetime, timedelta
 
@@ -40,7 +40,7 @@ def dashboard():
     medium_priority = len([t for t in open_tasks if t.priority == "MEDIUM"])
     low_priority = len([t for t in open_tasks if t.priority == "LOW"])
     
-    # חישוב עומסי עבודה (Workload Analytics) בהתבסס על הזמן המוערך (Phase 3+4)
+    # חישוב עומסי עבודה כלליים (Workload Analytics) בהתבסס על הזמן המוערך (Phase 3+4)
     total_estimated_minutes = sum([t.estimated_minutes for t in open_tasks if t.estimated_minutes])
     done_estimated_minutes = sum([t.estimated_minutes for t in done_tasks if t.estimated_minutes])
 
@@ -58,6 +58,11 @@ def dashboard():
     sla_breached = [t for t in open_tasks if t.sla_breach_at and t.sla_breach_at < now]
     stuck_tasks = [t for t in open_tasks if t.status == 'IN_PROGRESS' and (t.updated_at or t.created_at) < now - timedelta(days=3)]
     unassigned_open = [t for t in open_tasks if not t.assigned_to_id]
+
+    # ===============================
+    # Phase 4.3: Workload Management (לפי עובדים)
+    # ===============================
+    team_workload = workload_service.get_team_workload(current_user)
 
     # פירוט ביצועים לפי מחלקה - רלוונטי רק למנהל מערכת (תמונה ארגונית מלאה)
     department_stats = []
@@ -99,7 +104,8 @@ def dashboard():
         done_estimated_minutes=done_estimated_minutes,
         today_tasks=today_tasks, urgent_list=urgent_list,
         department_stats=department_stats, unassigned_dept_count=unassigned_dept_count,
-        sla_breached=sla_breached, stuck_tasks=stuck_tasks, unassigned_open=unassigned_open
+        sla_breached=sla_breached, stuck_tasks=stuck_tasks, unassigned_open=unassigned_open,
+        team_workload=team_workload
     )
 
 
@@ -443,7 +449,7 @@ def delete_template(template_id):
 
 
 # =========================================================
-# 📜 יומן ביקורת - מי עשה מה (admin בלבד)
+# 📜 יומן ביקורת - מי עשה מה (admin בלבד) - כולל מערכת סינון
 # =========================================================
 
 _AUDIT_ACTION_LABELS = {
@@ -520,15 +526,9 @@ def audit_log():
 
 # =========================================================
 # 🤖 אוטומציות (Workflow Automation) - admin בלבד
-# Controllers כאן "דקים" בכוונה - כל הלוגיקה ב-AutomationService
 # =========================================================
 
 def _parse_rule_form(form):
-    """
-    ה-UI ב-v1 תומך בתנאי אחד ופעולה אחת לכלל (MVP, לפי דרישה מפורשת שלא לבנות
-    Rule Builder מורכב) - אבל השכבה התחתונה (מודל+Service) תומכת ברשימות, כדי
-    שאפשר יהיה להרחיב בעתיד בלי לשנות סכימה.
-    """
     conditions = []
     field = form.get("condition_field", "").strip()
     if field:
