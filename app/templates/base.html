@@ -133,10 +133,15 @@
         .bottom-nav a.active { color: var(--brand-blue); font-weight: 700; }
         .bottom-nav a i { font-size: 20px; }
 
-        /* ===== סרגל התקדמות עם אנימציה ===== */
-        .progress-bar { transition: width 0.6s var(--ease); }
+        /* ===== Phase 4.5: סגנונות חיפוש גלובלי ===== */
+        .search-result-item {
+            display: flex; flex-direction: column; padding: 8px 16px; border-bottom: 1px solid var(--bs-border-color); text-decoration: none; color: var(--bs-body-color);
+        }
+        .search-result-item:hover { background-color: var(--bs-tertiary-bg); }
+        .search-result-title { font-weight: 600; font-size: 14px; }
+        .search-result-meta { font-size: 11px; color: var(--bs-secondary-color); }
 
-        /* ===== badge עדין יותר ===== */
+        .progress-bar { transition: width 0.6s var(--ease); }
         .badge { font-weight: 500; letter-spacing: 0.2px; }
 
         @media (max-width: 768px) {
@@ -233,7 +238,7 @@
 {% endif %}
 
 <div class="content">
-    <div class="topbar shadow-sm d-flex justify-content-between align-items-center">
+    <div class="topbar shadow-sm d-flex justify-content-between align-items-center position-relative">
         <div class="fw-semibold d-flex align-items-center gap-2">
             {% if current_user.is_authenticated %}
                 <i class="bi bi-sun text-warning"></i> שלום, {{ current_user.username }}
@@ -241,26 +246,55 @@
                 <i class="bi bi-check2-square text-primary"></i> מערכת ניהול משימות
             {% endif %}
         </div>
+
+        <!-- Phase 4.5: Global Search (Desktop) -->
+        {% if current_user.is_authenticated %}
+        <div class="position-relative flex-grow-1 mx-4 d-none d-md-block" style="max-width: 400px;">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                <input type="text" id="globalSearchInput" class="form-control border-start-0 ps-0 bg-light shadow-none" placeholder="חיפוש מהיר משימות, אנשים..." autocomplete="off">
+            </div>
+            <div id="globalSearchResults" class="dropdown-menu w-100 position-absolute shadow mt-1 p-0" style="display: none; max-height: 400px; overflow-y: auto; z-index: 1050; border-radius: 10px;"></div>
+        </div>
+        {% endif %}
+
         <div class="d-flex align-items-center gap-2">
+            <!-- Phase 4.5: Global Search Toggle (Mobile) -->
+            {% if current_user.is_authenticated %}
+            <button class="btn btn-sm btn-outline-secondary d-md-none border-0" id="mobileSearchBtn">
+                <i class="bi bi-search"></i>
+            </button>
+            {% endif %}
+
             {% if current_user.is_authenticated %}
             <div class="dropdown">
                 <button class="btn btn-sm btn-outline-secondary position-relative" type="button" id="notifBellBtn" data-bs-toggle="dropdown" aria-expanded="false">
                     <i class="bi bi-bell"></i>
                     <span id="notifBadge" class="position-absolute top-0 start-0 translate-middle badge rounded-pill bg-danger" style="display:none; font-size: 10px;"></span>
                 </button>
-                <div class="dropdown-menu dropdown-menu-end p-0" style="width: 320px; max-height: 400px; overflow-y: auto;" id="notifDropdown">
-                    <div class="d-flex justify-content-between align-items-center p-2 border-bottom">
-                        <span class="fw-semibold small">התראות</span>
-                        <button class="btn btn-sm btn-link p-0 small" id="markAllReadBtn">סמן הכל כנקרא</button>
+                <div class="dropdown-menu dropdown-menu-end p-0 shadow-lg border-0" style="width: 320px; max-height: 400px; overflow-y: auto;" id="notifDropdown">
+                    <div class="d-flex justify-content-between align-items-center p-3 border-bottom bg-light">
+                        <span class="fw-bold small text-primary"><i class="bi bi-bell-fill"></i> התראות</span>
+                        <button class="btn btn-sm btn-link p-0 small text-decoration-none" id="markAllReadBtn">סמן הכל כנקרא</button>
                     </div>
-                    <div id="notifList"><div class="text-center text-muted small p-3">טוען...</div></div>
+                    <div id="notifList"><div class="text-center text-muted small p-4">טוען...</div></div>
                 </div>
             </div>
             {% endif %}
-            <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" id="themeToggleBtn" onclick="toggleTheme()">
-                <i class="bi bi-moon-stars" id="themeIcon"></i> <span id="themeLabel">מצב כהה</span>
+            <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 border-0" id="themeToggleBtn" onclick="toggleTheme()" title="החלף עיצוב">
+                <i class="bi bi-moon-stars" id="themeIcon"></i> <span id="themeLabel" class="d-none d-md-inline">כהה</span>
             </button>
         </div>
+
+        <!-- Mobile Search Dropdown Container -->
+        <div id="mobileSearchContainer" class="position-absolute w-100 start-0 top-100 mt-2 p-2 bg-white shadow rounded-3 d-none z-3 border">
+            <div class="input-group">
+                <input type="text" id="mobileSearchInput" class="form-control form-control-sm border-end-0 shadow-none" placeholder="חפש כאן..." autofocus>
+                <button class="btn btn-sm border-start-0 border text-muted bg-white" id="closeMobileSearchBtn"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div id="mobileSearchResults" class="mt-2" style="max-height: 300px; overflow-y: auto;"></div>
+        </div>
+
     </div>
 
     {% block content %}{% endblock %}
@@ -289,10 +323,10 @@
     function updateButtonText(theme) {
         if (theme === 'light') {
             themeIcon.className = 'bi bi-moon-stars';
-            themeLabel.textContent = 'מצב כהה';
+            if(themeLabel) themeLabel.textContent = 'כהה';
         } else {
             themeIcon.className = 'bi bi-sun';
-            themeLabel.textContent = 'מצב בהיר';
+            if(themeLabel) themeLabel.textContent = 'בהיר';
         }
     }
 
@@ -322,6 +356,95 @@
     {% endwith %}
 
     {% if current_user.is_authenticated %}
+    // Phase 4.5: Global Search Logic (Debounced Fetch API)
+    (function() {
+        const searchInput = document.getElementById('globalSearchInput');
+        const resultsContainer = document.getElementById('globalSearchResults');
+        const mobileBtn = document.getElementById('mobileSearchBtn');
+        const mobileContainer = document.getElementById('mobileSearchContainer');
+        const mobileInput = document.getElementById('mobileSearchInput');
+        const mobileResults = document.getElementById('mobileSearchResults');
+        const closeMobileBtn = document.getElementById('closeMobileSearchBtn');
+
+        let timeout = null;
+
+        function doSearch(query, resultBox, isMobile) {
+            if (query.length < 2) {
+                resultBox.style.display = 'none';
+                return;
+            }
+
+            fetch(`/api/search?q=${encodeURIComponent(query)}`)
+                .then(r => r.json())
+                .then(data => {
+                    let html = '';
+                    
+                    if (data.tasks && data.tasks.length > 0) {
+                        html += `<div class="p-2 bg-light border-bottom small fw-bold text-muted">משימות</div>`;
+                        data.tasks.forEach(t => {
+                            let icon = t.status === 'DONE' ? 'bi-check-circle-fill text-success' : 'bi-circle text-secondary';
+                            html += `<a href="/edit/${t.id}" class="search-result-item">
+                                <div class="search-result-title"><i class="bi ${icon} me-1"></i> ${t.title}</div>
+                            </a>`;
+                        });
+                    }
+
+                    if (data.users && data.users.length > 0) {
+                        html += `<div class="p-2 bg-light border-bottom small fw-bold text-muted">משתמשים</div>`;
+                        data.users.forEach(u => {
+                            html += `<a href="/admin" class="search-result-item">
+                                <div class="search-result-title"><i class="bi bi-person me-1 text-primary"></i> ${u.username}</div>
+                                <div class="search-result-meta">${u.role}</div>
+                            </a>`;
+                        });
+                    }
+
+                    if (!html) {
+                        html = `<div class="p-3 text-center text-muted small">לא נמצאו תוצאות עבור "${query}"</div>`;
+                    }
+
+                    resultBox.innerHTML = html;
+                    resultBox.style.display = 'block';
+                });
+        }
+
+        if (searchInput) {
+            searchInput.addEventListener('input', function(e) {
+                clearTimeout(timeout);
+                const q = e.target.value.trim();
+                timeout = setTimeout(() => doSearch(q, resultsContainer, false), 300);
+            });
+            // Hide on outside click
+            document.addEventListener('click', function(e) {
+                if (!searchInput.contains(e.target) && !resultsContainer.contains(e.target)) {
+                    resultsContainer.style.display = 'none';
+                }
+            });
+            searchInput.addEventListener('focus', function() {
+                if(this.value.trim().length >= 2) resultsContainer.style.display = 'block';
+            });
+        }
+
+        // Mobile Search Toggle
+        if (mobileBtn) {
+            mobileBtn.addEventListener('click', () => {
+                mobileContainer.classList.remove('d-none');
+                mobileInput.focus();
+            });
+            closeMobileBtn.addEventListener('click', () => {
+                mobileContainer.classList.add('d-none');
+                mobileInput.value = '';
+                mobileResults.innerHTML = '';
+            });
+            mobileInput.addEventListener('input', function(e) {
+                clearTimeout(timeout);
+                const q = e.target.value.trim();
+                timeout = setTimeout(() => doSearch(q, mobileResults, true), 300);
+            });
+        }
+    })();
+
+    // Notifications Logic
     (function () {
         const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
         const badge = document.getElementById('notifBadge');
