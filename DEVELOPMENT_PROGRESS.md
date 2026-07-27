@@ -194,5 +194,31 @@ Allowlist-only בכל שכבה: `VALID_TRIGGERS`, `VALID_FIELDS`, `VALID_OPERATO
 ### Known Issues
 - שימוש ב-`Query.get()` (API ישן, הוגדר מ-Phase 1 כחוב טכני שיידחה לשלב עתידי).
 
-### Next Phase
-ממתין להוראות להמשך לפי ה-Roadmap المקורי של הפרויקט.
+---
+
+## Phase 4 — System Analytics, Audit & Polish
+**Status:** ✅ Complete
+
+### מה בוצע
+1. **Workload Analytics:** הרחבת הדשבורד עם מטריקות זמן ("עומס עבודה נותר" ו"זמן שבוצע") מבוססות על `estimated_minutes` מ-Phase 3. הצגת עומס העבודה הנותר גם ברמת המחלקה.
+2. **Audit Logs Filtering:** יצירת מערכת סינון מתקדמת ביומן הביקורת (`/admin/audit_log`) המאפשרת למנהל לסנן לפי משתמש, סוג פעולה וטווח תאריכים.
+3. **Export Upgrades:** עדכון פונקציות ייצוא הדוחות (Excel ו-PDF) לכלול את עמודות Phase 3: זמן מוערך, תלויות פתוחות, ומשימות-אב. רוחב העמודות ב-PDF הותאם לשמירה על פורמט A4 תקין.
+4. **System Health Check:** הוספת נקודת קצה `GET /api/health` לבדיקת זמינות מסד הנתונים והחיבורים (Readiness Probe).
+
+### קבצים ששונו
+- `app/routes/dashboard.py` — הרחבת מטריקות בדשבורד, הוספת לוגיקת סינון ב-`audit_log`.
+- `app/routes/tasks.py` — הוספת `health_check`, עדכון `export_excel` ו-`export_pdf`.
+- `app/templates/dashboard.html` — עדכון הגריד (מ-4 ל-6 כרטיסיות) ותוספת עמודות בטבלת מחלקות.
+- `app/templates/admin_audit_log.html` — הוספת טופס סינון (GET) שומר מצב.
+
+### קבצים שנוספו
+- `tests/test_phase4_analytics_audit.py`
+
+### Validation
+- ✅ ה-Health Check מדווח סטטוס תקין (`db_online: true`).
+- ✅ טפסי סינון Audit Logs עובדים נכון (GET parameters) ונשמרים במעבר בין דפים בפגינציה.
+- ✅ רוחב עמודות ב-PDF שומר על שלמות המסמך עם השדות החדשים.
+- ✅ חישובי עומס עבודה ממירים נכונה דקות לפורמט קריא של שעות.
+
+### Known Issues
+- שימוש ב-`Query.get()` (API ישן, הוגדר כחוב טכני נדחה).
