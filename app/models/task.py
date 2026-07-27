@@ -16,6 +16,20 @@ RECURRENCE_LABELS = {
 # גודל מקסימלי לתמונה מצורפת (בבייטים, לפני קידוד base64) - שומר על גודל ה-DB סביר
 MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024  # 2MB
 
+# טבלת קישור לתמיכה בריבוי תלויות (Dependencies)
+task_dependencies = db.Table('task_dependencies',
+    db.Column('task_id', db.Integer, db.ForeignKey('task.id', ondelete="CASCADE"), primary_key=True),
+    db.Column('depends_on_task_id', db.Integer, db.ForeignKey('task.id', ondelete="CASCADE"), primary_key=True)
+)
+
+class TaskChecklistItem(db.Model):
+    __tablename__ = 'task_checklist_item'
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id', ondelete="CASCADE"), nullable=False)
+    text = db.Column(db.String(255), nullable=False)
+    is_done = db.Column(db.Boolean, default=False)
+    order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -54,3 +68,31 @@ class Task(db.Model):
     # פרטי המדווח, רלוונטי רק למשימות שמקורן 'public' - כדי שאפשר יהיה לחזור אליו
     reporter_name = db.Column(db.String(100), nullable=True)
     reporter_phone = db.Column(db.String(20), nullable=True)
+
+    # ===============================
+    # Phase 3: Advanced Task Tracking
+    # ===============================
+    
+    # תתי-משימות
+    parent_task_id = db.Column(db.Integer, db.ForeignKey('task.id', ondelete="CASCADE"), nullable=True)
+    sub_tasks = db.relationship('Task', 
+                                backref=db.backref('parent_task', remote_side=[id]), 
+                                lazy='dynamic', 
+                                foreign_keys=[parent_task_id],
+                                cascade="all, delete-orphan")
+
+    # זמן מוערך בדקות
+    estimated_minutes = db.Column(db.Integer, nullable=True, default=0)
+
+    # רשימת תיוג (Checklist)
+    checklist_items = db.relationship('TaskChecklistItem', backref='task', lazy='dynamic', cascade="all, delete-orphan", order_by="TaskChecklistItem.order")
+
+    # תלויות מרובות
+    dependencies = db.relationship(
+        'Task',
+        secondary=task_dependencies,
+        primaryjoin=(id == task_dependencies.c.task_id),
+        secondaryjoin=(id == task_dependencies.c.depends_on_task_id),
+        backref=db.backref('dependent_tasks', lazy='dynamic'),
+        lazy='dynamic'
+    )
