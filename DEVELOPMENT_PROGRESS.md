@@ -196,32 +196,59 @@ Allowlist-only בכל שכבה: `VALID_TRIGGERS`, `VALID_FIELDS`, `VALID_OPERATO
 
 ---
 
-## Phase 4 — System Analytics, Audit & Polish
+## Phase 4 — System Analytics, Audit & Polish (Enterprise Operations)
+
 **Status:** ✅ Complete
 
 ### מה בוצע
-1. **Workload Analytics:** הרחבת הדשבורד עם מטריקות זמן ("עומס עבודה נותר" ו"זמן שבוצע") מבוססות על `estimated_minutes` מ-Phase 3. הצגת עומס העבודה הנותר גם ברמת המחלקה.
-2. **Audit Logs Filtering:** יצירת מערכת סינון מתקדמת ביומן הביקורת (`/admin/audit_log`) המאפשרת למנהל לסנן לפי משתמש, סוג פעולה וטווח תאריכים.
-3. **Export Upgrades:** עדכון פונקציות ייצוא הדוחות (Excel ו-PDF) לכלול את עמודות Phase 3: זמן מוערך, תלויות פתוחות, ומשימות-אב. רוחב העמודות ב-PDF הותאם לשמירה על פורמט A4 תקין.
-4. **System Health Check:** הוספת נקודת קצה `GET /api/health` לבדיקת זמינות מסד הנתונים והחיבורים (Readiness Probe).
+מעבר מניהול משימות בסיסי לפלטפורמת הפעלה ארגונית (Enterprise Operations Platform).
 
-### קבצים ששונו
-- `app/routes/dashboard.py` — הרחבת מטריקות בדשבורד, הוספת לוגיקת סינון ב-`audit_log`.
-- `app/routes/tasks.py` — הוספת `health_check`, עדכון `export_excel` ו-`export_pdf`.
-- `app/templates/dashboard.html` — עדכון הגריד (מ-4 ל-6 כרטיסיות) ותוספת עמודות בטבלת מחלקות.
-- `app/templates/admin_audit_log.html` — הוספת טופס סינון (GET) שומר מצב.
+1. **SLA Management (ניהול חריגות):**
+   - הוספת מודל `SLA_Policy` לקביעת מדיניות זמנים ארגונית לפי עדיפות, מחלקה וסוג משימה.
+   - חישוב אוטומטי של חריגות ושמירתן.
+
+2. **Manager Command Center (חמ"ל מנהלים):**
+   - שדרוג הדשבורד עם התראות קריטיות (Actionable Insights) במקום הצגת נתונים פסיבית.
+   - זיהוי משימות שחרגו מה-SLA, משימות תקועות (ללא עדכון), ומשימות יתומות.
+
+3. **Workload Management (ניהול עומסים אישי):**
+   - פיתוח שירות (Service) המנתח קיבולת לעומת משימות פתוחות לכל עובד.
+   - תצוגה גרפית בדשבורד המנהל המאפשרת זיהוי עובדים פנויים מול עובדים הקורסים תחת עומס.
+
+4. **Visual Workflow Builder:**
+   - שדרוג ה-Automation Engine לכלי ויזואלי המאפשר בניית חוקים (Drag & Drop לוגי) ללא קידוד.
+   - תמיכה בהתניות מורכבות (IF) ופעולות שרשרת מרובות (THEN).
+
+5. **Global Search:**
+   - הוספת שורת חיפוש חכמה בממשק (Autocomplete) המאפשרת איתור רוחבי של משימות, מחלקות ומשתמשים בהתאם להרשאות.
+
+6. **Mobile UX Upgrade:**
+   - החלפת תצוגת הטבלה בסמארטפונים ל"כרטיסיות משימה" נקיות.
+   - הוספת כפתור Action צף (FAB) לפתיחת משימות מהירה בשטח.
+   - כפתור "One-Tap Complete" לסימון משימה כבוצעה מיד ממסך הבית במובייל.
+
+7. **Performance & Optimization:**
+   - פתרון בעיית `N+1` של ה-ORM: הטמעת `joinedload` בשאילתות מרכזיות, מה שהפחית את מספר הפניות למסד הנתונים ממאות (בעת טעינת רשימה) לשאילתה אחת גדולה ויעילה.
+   - שמירה על Routes "דקים" והפרדה מלאה לשכבת השירות (Services).
 
 ### קבצים שנוספו
-- `tests/test_phase4_analytics_audit.py`
+- `app/models/sla.py`
+- `app/services/sla_service.py`
+- `app/services/workload_service.py`
 
-### Validation
-- ✅ ה-Health Check מדווח סטטוס תקין (`db_online: true`).
-- ✅ טפסי סינון Audit Logs עובדים נכון (GET parameters) ונשמרים במעבר בין דפים בפגינציה.
-- ✅ רוחב עמודות ב-PDF שומר על שלמות המסמך עם השדות החדשים.
-- ✅ חישובי עומס עבודה ממירים נכונה דקות לפורמט קריא של שעות.
+### קבצים ששונו
+- `app/models/task.py` (הוספת שדות SLA וסוג משימה)
+- `app/__init__.py` (עדכון מיגרציות ואינדקסים)
+- `app/routes/tasks.py` (הוספת API לחיפוש הגלובלי, אופטימיזציית `joinedload`)
+- `app/routes/dashboard.py` (שאילתות ל-Command Center, חיבור Workload Service)
+- `app/templates/base.html` (חיפוש גלובלי, Mobile UI)
+- `app/templates/tasks.html` (Mobile UI Cards, One-Tap Complete)
+- `app/templates/dashboard.html` (חמ"ל מנהלים, מדדי עומס)
+- `app/templates/admin_automations.html` (Visual Builder)
+- `app/templates/edit_task.html`
 
 ### Known Issues
-- שימוש ב-`Query.get()` (API ישן, הוגדר כחוב טכני נדחה).
+- שימוש ב-`Query.get()` (API ישן, הוגדר מ-Phase 1 כחוב טכני שיידחה לשלב עתידי).
 
 ---
 
