@@ -14,12 +14,12 @@ from app.services import automation_service, sla_service
 from app import db, mail, limiter
 from flask_mail import Message
 from datetime import datetime, date, timedelta
-from sqlalchemy import text
+from sqlalchemy import text, or_
 
 bp = Blueprint("tasks", __name__)
 
 # =========================================================
-# System Health Check (Phase 4.0)
+# System Health Check & APIs (Phase 4.0 + 4.5)
 # =========================================================
 @bp.route("/api/health")
 def health_check():
@@ -35,6 +35,35 @@ def health_check():
         "db_online": db_status,
         "timestamp": datetime.utcnow().isoformat()
     }), 200 if db_status else 500
+
+
+@bp.route("/api/search")
+@login_required
+def global_search():
+    """נקודת קצה לחיפוש גלובלי מהיר (Phase 4.5). מחפש במשימות, משתמשים ומחלקות בהתאם להרשאות."""
+    q = request.args.get("q", "").strip()
+    if len(q) < 2:
+        return jsonify({"tasks": [], "users": [], "departments": []})
+    
+    # 1. חיפוש משימות - רק במשימות שהמשתמש רשאי לראות
+    t_query = visible_task_query(current_user).filter(
+        or_(Task.title.ilike(f"%{q}%"), Task.description.ilike(f"%{q}%"))
+    ).limit(6).all()
+    tasks_data = [{"id": t.id, "title": t.title, "status": t.status} for t in t_query]
+    
+    # 2. חיפוש משתמשים - רלוונטי רק למנהלים לצורך הקצאות
+    users_data = []
+    if current_user.role in ['admin', 'manager']:
+        u_query = User.query.filter(User.username.ilike(f"%{q}%")).limit(3).all()
+        users_data = [{"id": u.id, "username": u.username, "role": u.role} for u in u_query]
+        
+    # 3. חיפוש מחלקות - רלוונטי רק למנהלי מערכת
+    dept_data = []
+    if current_user.role == 'admin':
+        d_query = Department.query.filter(Department.name.ilike(f"%{q}%")).limit(3).all()
+        dept_data = [{"id": d.id, "name": d.name} for d in d_query]
+        
+    return jsonify({"tasks": tasks_data, "users": users_data, "departments": dept_data})
 
 
 @bp.route("/service-worker.js")
@@ -1182,7 +1211,7 @@ def bulk_delete_tasks():
 
 
 # =========================================================
-# 📤 ייצוא דוחות (Excel / PDF) - מכבד את אותם הסינונים שהוצגו במסך (Phase 4 Updates)
+# 📤 ייצוא דוחות (Excel / PDF)
 # =========================================================
 
 _STATUS_LABELS_HE = {"TODO": "לביצוע", "IN_PROGRESS": "בתהליך", "DONE": "בוצע"}
@@ -1536,10 +1565,6 @@ def stats_trend():
 
 # =========================================================
 # 🛠️ כלי חילוץ ושדרוג אוטומטי למסד הנתונים
-#
-# ⚠️ הראוטים האלה מבצעים שינויים במסד הנתונים ולכן מוגנים ב-"מפתח מיגרציה".
-# יש להגדיר משתני סביבה ENABLE_ADMIN_TOOLS=true ו-MIGRATION_SECRET (ב-Render)
-# ולהעביר את המפתח כפרמטר ?key=... אחרת הראוטים חסומים לגמרי מטעמי אבטחה.
 # =========================================================
 
 @bp.route("/fix-db")
@@ -1580,11 +1605,7 @@ def fix_db():
 @bp.route("/upgrade-permissions")
 def upgrade_permissions():
     """
-    מיגרציה חד-פעמית לשדרוג מודל ההרשאות:
-    - יוצר טבלת department (אם לא קיימת).
-    - מוסיף לטבלת user את department_id ו-manager_id (אם חסרים).
-    - הופך את המשתמש 'mv' (ומשתמשי 'manager' ישנים) ל-role='admin'.
-    יש לקרוא לראוט הזה פעם אחת בלבד, עם ?key=<MIGRATION_SECRET>.
+    מיגרציה חד-פעמית לשדרוג מודל ההרשאות.
     """
     if not _check_migration_key():
         return "🔒 גישה חסומה. יש להגדיר ENABLE_ADMIN_TOOLS=true ו-MIGRATION_SECRET, ולספק ?key=... תואם.", 403
