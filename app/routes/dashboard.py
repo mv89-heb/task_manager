@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
 from app.models.task import Task
 from app.models.user import User, ROLE_ADMIN, ROLE_MANAGER, ROLE_EMPLOYEE, ROLE_LABELS, validate_password_strength
@@ -449,7 +449,7 @@ def delete_template(template_id):
 
 
 # =========================================================
-# 📜 יומן ביקורת - מי עשה מה (admin בלבד) - כולל מערכת סינון
+# 📜 יומן ביקורת - מי עשה מה (admin בלבד)
 # =========================================================
 
 _AUDIT_ACTION_LABELS = {
@@ -526,39 +526,8 @@ def audit_log():
 
 # =========================================================
 # 🤖 אוטומציות (Workflow Automation) - admin בלבד
+# Phase 4.1: שודרג לקבלת JSON מתקדם התומך במספר חוקים (Visual Builder)
 # =========================================================
-
-def _parse_rule_form(form):
-    conditions = []
-    field = form.get("condition_field", "").strip()
-    if field:
-        value_raw = form.get("condition_value", "").strip()
-        if field == "is_overdue":
-            value = value_raw == "true"
-        elif field == "department_id":
-            value = int(value_raw) if value_raw else None
-        else:
-            value = value_raw
-        conditions.append({
-            "field": field,
-            "operator": form.get("condition_operator", "equals"),
-            "value": value,
-        })
-
-    action_type = form.get("action_type", "").strip()
-    params = {}
-    if action_type == "change_priority":
-        params = {"priority": form.get("action_priority", "")}
-    elif action_type == "reassign_to":
-        raw_user_id = form.get("action_user_id", "")
-        params = {"user_id": int(raw_user_id)} if raw_user_id.isdigit() else {}
-    actions = [{"type": action_type, "params": params}] if action_type else []
-
-    department_id = form.get("department_id") or None
-    department_id = int(department_id) if department_id else None
-
-    return conditions, actions, department_id
-
 
 @bp.route("/admin/automations", methods=["GET", "POST"])
 @login_required
@@ -568,27 +537,37 @@ def admin_automations():
         return redirect(url_for('tasks.index'))
 
     if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        trigger_event = request.form.get("trigger_event", "")
-        conditions, actions, department_id = _parse_rule_form(request.form)
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "Invalid payload format."}), 400
+
+        name = data.get("name", "").strip()
+        trigger_event = data.get("trigger_event", "")
+        conditions = data.get("conditions", [])
+        actions = data.get("actions", [])
+        
+        department_id = data.get("department_id")
+        department_id = int(department_id) if department_id else None
 
         if not name:
-            flash("יש להזין שם לכלל.", "danger")
-            return redirect(url_for("dashboard.admin_automations"))
+            return jsonify({"success": False, "message": "יש להזין שם לכלל."}), 400
 
         try:
             automation_service.create_rule(
                 current_user, name, trigger_event, conditions, actions, department_id=department_id
             )
+            # טריק אלגנטי: מגדיר את ה-Flash כבר בשרת לפני החזרת ה-JSON. 
+            # כשהדפדפן יבצע window.location.reload() לאחר ה-Success, הוא כבר ימשוך את ההודעה הרגילה.
             flash(f"הכלל '{name}' נוצר בהצלחה.", "success")
+            return jsonify({"success": True})
+            
         except automation_service.AutomationValidationError as e:
-            flash(str(e), "danger")
-
-        return redirect(url_for("dashboard.admin_automations"))
+            return jsonify({"success": False, "message": str(e)}), 400
 
     rules = automation_service.list_rules_for(current_user)
     departments = Department.query.order_by(Department.name).all()
     users = User.query.order_by(User.username).all()
+    
     return render_template(
         "admin_automations.html",
         rules=rules,
