@@ -775,6 +775,33 @@ def update_status(id):
             return jsonify({"success": True})
     return jsonify({"success": False}), 400
 
+
+@bp.route("/calendar")
+@login_required
+def calendar():
+    return render_template("calendar.html")
+
+@bp.route("/api/calendar_tasks")
+@login_required
+def calendar_tasks():
+    # דיווחים ציבוריים לא מוצגים כאן (יש להם לשונית נפרדת) - עקביות עם הרשימה הראשית
+    tasks = visible_task_query(current_user).filter(Task.due_date.isnot(None), Task.source != "public").all()
+
+    events = []
+    for t in tasks:
+        color = "#22c55e" if t.status == "DONE" else ("#ef4444" if t.priority == "HIGH" else "#3b82f6")
+        can_edit = can_create_tasks(current_user) and can_touch_task(current_user, t)
+        events.append({ 
+            "id": t.id, 
+            "title": t.title, 
+            "start": t.due_date.isoformat(), 
+            "backgroundColor": color, 
+            "borderColor": color, 
+            "url": f"/edit/{t.id}" if can_edit else "#" 
+        })
+    return jsonify(events)
+
+
 @bp.route("/admin/test_email", methods=["POST"])
 @login_required
 @limiter.limit("10 per hour")
