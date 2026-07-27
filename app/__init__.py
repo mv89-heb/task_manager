@@ -118,6 +118,9 @@ def _auto_migrate_and_seed_admin(app):
         ('source', "VARCHAR(20) DEFAULT 'internal'"),
         ('reporter_name', 'VARCHAR(100)'),
         ('reporter_phone', 'VARCHAR(20)'),
+        # Phase 3 Fields
+        ('parent_task_id', 'INTEGER'),
+        ('estimated_minutes', 'INTEGER'),
     ])
 
     # אינדקסים על עמודות שנשאלות בכל טעינת עמוד כמעט - קריטי לביצועים ככל שהנתונים גדלים.
@@ -198,7 +201,7 @@ def create_app():
     with app.app_context():
         from app.models.department import Department
         from app.models.user import User
-        from app.models.task import Task
+        from app.models.task import Task, TaskChecklistItem, task_dependencies
         from app.models.comment import TaskComment
         from app.models.notification import Notification
         from app.models.task_template import TaskTemplate
