@@ -15,6 +15,7 @@ from app import db, mail, limiter
 from flask_mail import Message
 from datetime import datetime, date, timedelta
 from sqlalchemy import text, or_
+from sqlalchemy.orm import joinedload
 
 bp = Blueprint("tasks", __name__)
 
@@ -85,12 +86,22 @@ def can_create_tasks(user):
 
 
 def visible_task_query(user):
-    """שאילתת המשימות שהמשתמש רשאי לראות, בהתאם לתפקיד ולמחלקה."""
+    """
+    שאילתת המשימות שהמשתמש רשאי לראות.
+    Phase 4.7 Performance: שימוש ב-joinedload פותר את בעיית ה-N+1 ומאפשר טעינה
+    של טבלאות שלמות בשאילתה אחת במקום במאות שאילתות נפרדות למסד הנתונים.
+    """
+    query = Task.query.options(
+        joinedload(Task.assignee),
+        joinedload(Task.department),
+        joinedload(Task.parent_task)
+    )
+    
     if user.role == "admin":
-        return Task.query
+        return query
     if user.role == "manager":
-        return Task.query.filter(Task.assigned_to_id.in_(user.visible_user_ids()))
-    return Task.query.filter_by(assigned_to_id=user.id)
+        return query.filter(Task.assigned_to_id.in_(user.visible_user_ids()))
+    return query.filter_by(assigned_to_id=user.id)
 
 
 def apply_task_filters(query, user, args):
@@ -1412,10 +1423,6 @@ def _check_reminder_key():
 
 # =========================================================
 # ⏰ תזכורות מייל למשימות שמתקרב תאריך היעד שלהן
-#
-# הראוט הזה לא רץ לבד - הוא מיועד להיקרא פעם ביום ע"י שירות חיצוני
-# (למשל cron-job.org, או GitHub Actions עם schedule) שקורא ל:
-# https://<your-app>.onrender.com/api/send_due_reminders?key=<REMINDER_SECRET>
 # =========================================================
 
 @bp.route("/api/send_due_reminders")
@@ -1423,8 +1430,7 @@ def send_due_reminders():
     """
     שולח תזכורות (מייל + התראה פנימית) על משימות שמתקרב תאריך היעד שלהן.
     פרמטר ?when=today (ברירת מחדל) או ?when=tomorrow קובע אילו משימות נכללות.
-    מיועד להיקרא ע"י cron חיצוני, למשל פעם ביום בבוקר:
-    https://<your-app>.onrender.com/api/send_due_reminders?key=<REMINDER_SECRET>&when=today
+    מיועד להיקרא ע"י cron חיצוני, למשל פעם ביום בבוקר.
     """
     if not _check_reminder_key():
         return "🔒 גישה חסומה. יש להגדיר REMINDER_SECRET ולספק ?key=... תואם.", 403
@@ -1477,7 +1483,6 @@ def send_due_reminders():
 
 # =========================================================
 # 🤖 הפעלת אוטומציות "task_overdue" - נועד להיקרא ע"י cron חיצוני פעם ביום
-# https://<your-app>.onrender.com/api/run_overdue_automations?key=<REMINDER_SECRET>
 # =========================================================
 
 @bp.route("/api/run_overdue_automations")
@@ -1498,10 +1503,6 @@ def run_overdue_automations():
 
 # =========================================================
 # 📈 תמונת מצב יומית לצורך גרף מגמות (השלמת משימות לאורך זמן)
-#
-# מיועד להיקרא ע"י cron חיצוני פעם ביום (לרוב בסוף היום):
-# https://<your-app>.onrender.com/api/snapshot_daily_stats?key=<REMINDER_SECRET>
-# אידמפוטנטי - קריאה נוספת באותו יום מעדכנת את השורה הקיימת במקום ליצור כפילות.
 # =========================================================
 
 @bp.route("/api/snapshot_daily_stats")
@@ -1604,23 +1605,19 @@ def fix_db():
 
 @bp.route("/upgrade-permissions")
 def upgrade_permissions():
-    """
-    מיגרציה חד-פעמית לשדרוג מודל ההרשאות.
-    """
+    """מיגרציה חד-פעמית לשדרוג מודל ההרשאות."""
     if not _check_migration_key():
         return "🔒 גישה חסומה. יש להגדיר ENABLE_ADMIN_TOOLS=true ו-MIGRATION_SECRET, ולספק ?key=... תואם.", 403
     log_audit(None, "use_upgrade_permissions_tool")
 
     output = []
 
-    # 1. יצירת כל הטבלאות החדשות שעדיין לא קיימות (כולל department)
     try:
         db.create_all()
         output.append("✅ טבלת 'department' נוצרה/קיימת.")
     except Exception as e:
         output.append(f"⚠️ שגיאה ביצירת טבלאות: {e}")
 
-    # 2. הוספת עמודות חדשות לטבלת user
     for column_sql, label in [
         ('ALTER TABLE "user" ADD COLUMN department_id INTEGER;', "department_id"),
         ('ALTER TABLE "user" ADD COLUMN manager_id INTEGER;', "manager_id"),
@@ -1633,7 +1630,6 @@ def upgrade_permissions():
             db.session.rollback()
             output.append(f"ℹ️ עמודת '{label}' כבר קיימת.")
 
-    # 3. הפיכת מנהל המערכת הראשי ל-admin (במקום 'manager' הישן)
     try:
         result = db.session.execute(text("UPDATE \"user\" SET role = 'admin' WHERE username = 'mv';"))
         db.session.commit()
