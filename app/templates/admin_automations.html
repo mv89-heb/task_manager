@@ -2,157 +2,82 @@
 {% block content %}
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h4 class="m-0 fw-bold" style="color: var(--brand-navy);"><i class="bi bi-gear-fill text-primary"></i> אוטומציות (Workflow)</h4>
+    <h4 class="m-0 fw-bold" style="color: var(--brand-navy);"><i class="bi bi-gear-fill text-primary"></i> אוטומציות (Workflow Builder)</h4>
     <div class="d-flex gap-2">
         <a href="/admin/automations/log" class="btn btn-outline-secondary fw-semibold"><i class="bi bi-clock-history"></i> יומן הרצה</a>
         <a href="/admin" class="btn btn-outline-secondary fw-semibold"><i class="bi bi-arrow-right"></i> חזרה לפאנל</a>
     </div>
 </div>
 
-<div class="alert alert-primary d-flex gap-2 mb-4">
-    <i class="bi bi-lightbulb fs-4 flex-shrink-0"></i>
-    <div class="small">
-        <b>איך זה עובד, בעברית פשוטה:</b><br>
-        כל כלל בנוי מ-3 חלקים: <b>מתי</b> להפעיל אותו (למשל "כשמשימה נוצרת"),
-        <b>תנאי</b> אופציונלי לסינון (למשל "רק אם עדיפות = גבוהה"),
-        ו<b>פעולה</b> אחת שתתבצע אוטומטית (למשל "התרע לכל מנהלי המערכת").<br>
-        <span class="text-muted">דוגמה מלאה: "כשמשימה נוצרת (מתי), אם העדיפות שלה גבוהה (תנאי), התרע לכל האדמינים (פעולה)".</span>
-    </div>
-</div>
-
 <div class="row">
-    <div class="col-md-5 mb-4">
-        <div class="card-modern shadow-sm p-4" style="border-top: 3px solid var(--brand-blue);">
-            <h6 class="fw-bold mb-3"><i class="bi bi-plus-circle text-primary"></i> כלל חדש</h6>
-            <form method="POST" id="ruleForm">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-                <div class="mb-3">
-                    <label class="form-label text-muted small">שם הכלל</label>
-                    <input type="text" name="name" class="form-control" placeholder="לדוגמה: התרעה על תקלה דחופה" required>
-                    <div class="form-text">שם חופשי שיעזור לך לזהות את הכלל ברשימה - לא משפיע על ההתנהגות.</div>
+    <!-- Visual Workflow Builder (Phase 4.1) -->
+    <div class="col-md-6 mb-4">
+        <div class="card-modern shadow-sm p-4 bg-light" style="border-top: 4px solid var(--brand-blue);">
+            <h6 class="fw-bold mb-4 text-center"><i class="bi bi-diagram-3 text-primary"></i> בניית תהליך חדש</h6>
+            
+            <div id="workflow-builder">
+                <!-- General Settings -->
+                <div class="card shadow-sm border-0 mb-3 rounded-4">
+                    <div class="card-body p-3">
+                        <label class="form-label text-muted small fw-bold">שם הכלל</label>
+                        <input type="text" id="wb-name" class="form-control form-control-sm mb-2" placeholder="לדוגמה: התרעה על תקלה דחופה">
+                        
+                        <label class="form-label text-muted small fw-bold mt-2">הגבל למחלקה מסוימת (אופציונלי)</label>
+                        <select id="wb-department" class="form-select form-select-sm">
+                            <option value="">— כל הארגון —</option>
+                            {% for d in departments %}
+                                <option value="{{ d.id }}">{{ d.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label text-muted small fw-semibold">1️⃣ מתי להפעיל את הכלל (Trigger)</label>
-                    <select name="trigger_event" id="triggerSelect" class="form-select" required>
-                        {% for key, label in trigger_labels.items() %}
-                            <option value="{{ key }}">{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                    <div class="form-text" id="triggerHelp">כל מה שנוצר/משתנה במערכת בודק אם יש כלל שמתאים לו.</div>
+                <!-- WHEN Node -->
+                <div class="card shadow-sm border-0 border-start border-primary border-4 mb-1 rounded-4">
+                    <div class="card-body p-3">
+                        <h6 class="text-primary fw-bold mb-2"><i class="bi bi-lightning-charge-fill"></i> מתי (WHEN)</h6>
+                        <select id="wb-trigger" class="form-select form-select-sm">
+                            {% for key, label in trigger_labels.items() %}
+                                <option value="{{ key }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="workflow-connector"></div>
+
+                <!-- IF Nodes Container -->
+                <div id="builder-conditions"></div>
+                <div class="text-center my-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3" onclick="addConditionNode()"><i class="bi bi-plus"></i> הוסף תנאי (IF)</button>
+                </div>
+                <div class="workflow-connector"></div>
+
+                <!-- THEN Nodes Container -->
+                <div id="builder-actions"></div>
+                <div class="text-center my-2">
+                    <button type="button" class="btn btn-sm btn-outline-success rounded-pill px-3" onclick="addActionNode()"><i class="bi bi-plus"></i> הוסף פעולה (THEN)</button>
                 </div>
 
-                <hr>
-                <label class="form-label text-muted small fw-semibold">2️⃣ תנאי לסינון (אופציונלי)</label>
-                <p class="text-muted small mb-2">אם תשאיר את זה על "ללא תנאי" - הכלל ירוץ בכל פעם שה-Trigger מתרחש, בלי סינון.</p>
+            </div>
 
-                <div class="mb-2">
-                    <label class="form-label text-muted small">על איזה שדה לבדוק?</label>
-                    <select name="condition_field" id="conditionField" class="form-select form-select-sm">
-                        <option value="">— ללא תנאי, תמיד תפעיל —</option>
-                        <option value="status">סטטוס המשימה</option>
-                        <option value="priority">עדיפות המשימה</option>
-                        <option value="source">מקור המשימה (פנימית/דיווח ציבורי)</option>
-                        <option value="department_id">מחלקת המשימה</option>
-                        <option value="is_overdue">האם המשימה באיחור</option>
-                    </select>
-                </div>
-
-                <div class="mb-2" id="conditionOperatorWrap" style="display:none;">
-                    <label class="form-label text-muted small">איך להשוות?</label>
-                    <select name="condition_operator" class="form-select form-select-sm">
-                        <option value="equals">שווה ל-</option>
-                        <option value="not_equals">שונה מ-</option>
-                    </select>
-                </div>
-
-                <div class="mb-3" id="conditionValueWrap" style="display:none;">
-                    <label class="form-label text-muted small">לאיזה ערך להשוות?</label>
-
-                    <select name="condition_value" class="form-select form-select-sm cond-value-select" data-for-field="status" disabled>
-                        <option value="TODO">לביצוע</option>
-                        <option value="IN_PROGRESS">בתהליך</option>
-                        <option value="DONE">בוצע</option>
-                    </select>
-                    <select name="condition_value" class="form-select form-select-sm cond-value-select" data-for-field="priority" disabled>
-                        <option value="HIGH">גבוהה</option>
-                        <option value="MEDIUM">בינונית</option>
-                        <option value="LOW">נמוכה</option>
-                    </select>
-                    <select name="condition_value" class="form-select form-select-sm cond-value-select" data-for-field="source" disabled>
-                        <option value="internal">משימה פנימית (נוצרה ע"י הצוות)</option>
-                        <option value="public">דיווח ציבורי (מהטופס הפתוח)</option>
-                    </select>
-                    <select name="condition_value" class="form-select form-select-sm cond-value-select" data-for-field="department_id" disabled>
-                        {% for d in departments %}
-                            <option value="{{ d.id }}">{{ d.name }}</option>
-                        {% endfor %}
-                    </select>
-                    <select name="condition_value" class="form-select form-select-sm cond-value-select" data-for-field="is_overdue" disabled>
-                        <option value="true">כן, המשימה באיחור</option>
-                        <option value="false">לא, המשימה לא באיחור</option>
-                    </select>
-                </div>
-
-                <hr>
-                <label class="form-label text-muted small fw-semibold">3️⃣ מה לעשות (Action)</label>
-                <div class="mb-2">
-                    <select name="action_type" id="actionType" class="form-select form-select-sm" required>
-                        {% for key, label in action_labels.items() %}
-                            <option value="{{ key }}">{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                    <div class="form-text" id="actionHelp"></div>
-                </div>
-
-                <div class="mb-3" id="actionPriorityWrap" style="display:none;">
-                    <label class="form-label text-muted small">לאיזו עדיפות לשנות?</label>
-                    <select name="action_priority" class="form-select form-select-sm">
-                        <option value="HIGH">גבוהה</option>
-                        <option value="MEDIUM">בינונית</option>
-                        <option value="LOW">נמוכה</option>
-                    </select>
-                </div>
-
-                <div class="mb-3" id="actionUserWrap" style="display:none;">
-                    <label class="form-label text-muted small">להקצות למי?</label>
-                    <select name="action_user_id" class="form-select form-select-sm">
-                        <option value="">— בחר משתמש —</option>
-                        {% for u in users %}
-                            <option value="{{ u.id }}">{{ u.username }} ({{ u.role }})</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label text-muted small">הגבל את הכלל למחלקה מסוימת (אופציונלי)</label>
-                    <select name="department_id" class="form-select">
-                        <option value="">— כל הארגון —</option>
-                        {% for d in departments %}
-                            <option value="{{ d.id }}">{{ d.name }}</option>
-                        {% endfor %}
-                    </select>
-                    <div class="form-text">אם תבחר מחלקה, הכלל ירוץ רק על משימות ששייכות אליה - לא על כל הארגון.</div>
-                </div>
-
-                <button type="submit" class="btn btn-primary fw-semibold w-100"><i class="bi bi-check2"></i> צור כלל</button>
-            </form>
+            <button type="button" id="wb-save-btn" class="btn btn-primary fw-bold w-100 mt-4 rounded-pill py-2 shadow-sm"><i class="bi bi-check-circle-fill"></i> הפעל תהליך זה</button>
+            <div id="wb-error" class="text-danger small mt-2 text-center" style="display:none;"></div>
         </div>
     </div>
 
-    <div class="col-md-7">
+    <!-- Existing Rules -->
+    <div class="col-md-6">
         <div class="card-modern shadow-sm p-0">
-            <div class="p-3 border-bottom">
-                <h6 class="m-0 fw-bold">כללים קיימים</h6>
+            <div class="p-3 border-bottom d-flex justify-content-between bg-white rounded-top">
+                <h6 class="m-0 fw-bold">תהליכים קיימים</h6>
+                <span class="badge bg-secondary">{{ rules|length }} פעילים</span>
             </div>
             <div class="table-responsive">
                 <table class="table align-middle mb-0 table-hover">
                     <thead class="table-light">
                         <tr>
-                            <th>שם</th>
-                            <th>Trigger</th>
-                            <th>מחלקה</th>
+                            <th>שם התהליך</th>
+                            <th>טריגר</th>
                             <th>סטטוס</th>
                             <th class="text-end">פעולות</th>
                         </tr>
@@ -160,12 +85,14 @@
                     <tbody>
                         {% for rule in rules %}
                         <tr>
-                            <td class="fw-bold">{{ rule.name }}</td>
-                            <td><span class="badge bg-light text-dark border">{{ trigger_labels.get(rule.trigger_event, rule.trigger_event) }}</span></td>
-                            <td class="small">{{ rule.department.name if rule.department else 'כלל הארגון' }}</td>
+                            <td>
+                                <div class="fw-bold text-dark">{{ rule.name }}</div>
+                                <div class="small text-muted">{{ rule.department.name if rule.department else 'כלל הארגון' }}</div>
+                            </td>
+                            <td><span class="badge bg-light text-dark border"><i class="bi bi-lightning-fill text-warning"></i> {{ trigger_labels.get(rule.trigger_event, rule.trigger_event) }}</span></td>
                             <td>
                                 {% if rule.is_active %}
-                                    <span class="badge bg-success">פעיל</span>
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">פעיל</span>
                                 {% else %}
                                     <span class="badge bg-secondary">כבוי</span>
                                 {% endif %}
@@ -173,8 +100,8 @@
                             <td class="text-end">
                                 <form method="POST" action="/admin/automations/{{ rule.id }}/toggle" class="d-inline">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" class="btn btn-sm btn-outline-secondary">
-                                        {% if rule.is_active %}השבת{% else %}הפעל{% endif %}
+                                    <button type="submit" class="btn btn-sm btn-light border" title="הפעל/השבת">
+                                        <i class="bi {% if rule.is_active %}bi-pause-fill text-warning{% else %}bi-play-fill text-success{% endif %}"></i>
                                     </button>
                                 </form>
                                 <form method="POST" action="/admin/automations/{{ rule.id }}/delete" class="d-inline"
@@ -185,7 +112,10 @@
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="5" class="text-center text-muted py-4">עדיין לא הוגדרו כללי אוטומציה.</td></tr>
+                        <tr><td colspan="4" class="text-center text-muted py-5">
+                            <i class="bi bi-wind fs-1 d-block mb-2 text-light"></i>
+                            עדיין לא הוגדרו כללי אוטומציה במערכת.
+                        </td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -194,66 +124,233 @@
     </div>
 </div>
 
+<style>
+    .workflow-connector {
+        width: 4px;
+        height: 15px;
+        background-color: #cbd5e1;
+        margin-right: 30px; /* RTL */
+    }
+</style>
+
+<!-- JSON Data for Builder -->
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    const triggerHelpText = {
-        'task_created': 'יופעל כל פעם שמישהו יוצר משימה חדשה (מהצוות).',
-        'status_changed': 'יופעל כל פעם שסטטוס של משימה משתנה (למשל מ"לביצוע" ל"בוצע").',
-        'task_overdue': 'יופעל אוטומטית פעם ביום (דרך תזכורת מתוזמנת) על כל משימה שעבר תאריך היעד שלה.',
-        'report_submitted': 'יופעל כל פעם שמישהו מדווח תקלה דרך הטופס הציבורי (בלי התחברות).',
-    };
-    const actionHelpText = {
-        'notify_assignee': 'ישלח התראה (במערכת + מייל אם יש) לאדם שהמשימה מוקצית אליו.',
-        'notify_department_managers': 'ישלח התראה לכל מנהלי התחום של המחלקה שהמשימה שייכת אליה.',
-        'notify_all_admins': 'ישלח התראה לכל מנהלי המערכת (admin), בלי קשר למחלקה.',
-        'change_priority': 'ישנה אוטומטית את העדיפות של המשימה לערך שתבחר למטה.',
-        'reassign_to': 'יעביר את המשימה אוטומטית למשתמש שתבחר למטה.',
-    };
+    const ACTION_LABELS = {{ action_labels | tojson | safe }};
+    const CSRF_TOKEN = "{{ csrf_token() }}";
+    
+    // Create lookup lists for dynamic selects
+    const DEPARTMENTS = [
+        {% for d in departments %}{ id: {{ d.id }}, name: "{{ d.name }}" }{% if not loop.last %},{% endif %}{% endfor %}
+    ];
+    const USERS = [
+        {% for u in users %}{ id: {{ u.id }}, username: "{{ u.username }}" }{% if not loop.last %},{% endif %}{% endfor %}
+    ];
+</script>
 
-    const triggerSelect = document.getElementById('triggerSelect');
-    const triggerHelp = document.getElementById('triggerHelp');
-    function updateTriggerHelp() {
-        triggerHelp.textContent = triggerHelpText[triggerSelect.value] || '';
+<!-- Visual Builder Logic (Vanilla JS) -->
+<script>
+    let conditionCount = 0;
+    let actionCount = 0;
+
+    function getConditionValueHTML(field, index) {
+        if (field === 'status') {
+            return `<select class="form-select form-select-sm cond-val-${index}"><option value="TODO">לביצוע</option><option value="IN_PROGRESS">בתהליך</option><option value="DONE">בוצע</option></select>`;
+        } else if (field === 'priority') {
+            return `<select class="form-select form-select-sm cond-val-${index}"><option value="CRITICAL">קריטית</option><option value="HIGH">גבוהה</option><option value="MEDIUM">בינונית</option><option value="LOW">נמוכה</option></select>`;
+        } else if (field === 'source') {
+            return `<select class="form-select form-select-sm cond-val-${index}"><option value="internal">פנימית</option><option value="public">דיווח ציבורי</option></select>`;
+        } else if (field === 'department_id') {
+            let opts = DEPARTMENTS.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+            return `<select class="form-select form-select-sm cond-val-${index}">${opts}</select>`;
+        } else if (field === 'is_overdue') {
+            return `<select class="form-select form-select-sm cond-val-${index}"><option value="true">כן, באיחור</option><option value="false">לא</option></select>`;
+        }
+        return '';
     }
-    triggerSelect.addEventListener('change', updateTriggerHelp);
-    updateTriggerHelp();
 
-    const conditionField = document.getElementById('conditionField');
-    const conditionOperatorWrap = document.getElementById('conditionOperatorWrap');
-    const conditionValueWrap = document.getElementById('conditionValueWrap');
-    const condValueSelects = document.querySelectorAll('.cond-value-select');
+    function updateConditionValueUI(index) {
+        const fieldSelect = document.querySelector(`.cond-field-${index}`);
+        const valueContainer = document.querySelector(`.cond-val-container-${index}`);
+        valueContainer.innerHTML = getConditionValueHTML(fieldSelect.value, index);
+    }
 
-    function updateConditionUI() {
-        const field = conditionField.value;
-        const hasField = field !== '';
-        conditionOperatorWrap.style.display = hasField ? 'block' : 'none';
-        conditionValueWrap.style.display = hasField ? 'block' : 'none';
+    function addConditionNode() {
+        conditionCount++;
+        const id = conditionCount;
+        const html = `
+            <div class="card shadow-sm border-0 border-start border-warning border-4 mb-1 rounded-4 position-relative cond-node" id="cond-node-${id}">
+                <button type="button" class="btn-close position-absolute top-0 end-0 m-2" style="font-size: 10px;" onclick="document.getElementById('cond-node-${id}').remove()"></button>
+                <div class="card-body p-3">
+                    <h6 class="text-warning fw-bold mb-2"><i class="bi bi-question-circle-fill"></i> אם (IF)</h6>
+                    <div class="row g-2">
+                        <div class="col-12 col-md-5">
+                            <select class="form-select form-select-sm cond-field-${id}" onchange="updateConditionValueUI(${id})">
+                                <option value="status">סטטוס משימה</option>
+                                <option value="priority">עדיפות משימה</option>
+                                <option value="source">מקור (פנימי/חיצוני)</option>
+                                <option value="department_id">מחלקה</option>
+                                <option value="is_overdue">האם באיחור</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <select class="form-select form-select-sm cond-op-${id}">
+                                <option value="equals">שווה ל-</option>
+                                <option value="not_equals">שונה מ-</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-4 cond-val-container-${id}">
+                            <!-- Dynamic value input goes here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.getElementById('builder-conditions').insertAdjacentHTML('beforeend', html);
+        updateConditionValueUI(id); // Initialize first value input
+    }
 
-        condValueSelects.forEach(sel => {
-            const matches = sel.getAttribute('data-for-field') === field;
-            sel.style.display = matches ? 'block' : 'none';
-            sel.disabled = !matches;  // רק הבחירה הפעילה נשלחת בטופס
+    function getActionParamsHTML(type, index) {
+        if (type === 'change_priority') {
+            return `<select class="form-select form-select-sm act-param-${index}"><option value="CRITICAL">קריטית</option><option value="HIGH">גבוהה</option><option value="MEDIUM">בינונית</option><option value="LOW">נמוכה</option></select>`;
+        } else if (type === 'reassign_to') {
+            let opts = USERS.map(u => `<option value="${u.id}">${u.username}</option>`).join('');
+            return `<select class="form-select form-select-sm act-param-${index}">${opts}</select>`;
+        }
+        return ''; // No params needed for notification actions
+    }
+
+    function updateActionParamsUI(index) {
+        const typeSelect = document.querySelector(`.act-type-${index}`);
+        const paramContainer = document.querySelector(`.act-param-container-${index}`);
+        paramContainer.innerHTML = getActionParamsHTML(typeSelect.value, index);
+    }
+
+    function addActionNode() {
+        actionCount++;
+        const id = actionCount;
+        let typeOpts = Object.entries(ACTION_LABELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+        
+        const html = `
+            <div class="card shadow-sm border-0 border-start border-success border-4 mb-1 rounded-4 position-relative act-node" id="act-node-${id}">
+                <button type="button" class="btn-close position-absolute top-0 end-0 m-2" style="font-size: 10px;" onclick="document.getElementById('act-node-${id}').remove()"></button>
+                <div class="card-body p-3">
+                    <h6 class="text-success fw-bold mb-2"><i class="bi bi-play-circle-fill"></i> אז (THEN)</h6>
+                    <div class="row g-2">
+                        <div class="col-12 col-md-7">
+                            <select class="form-select form-select-sm act-type-${id}" onchange="updateActionParamsUI(${id})">
+                                ${typeOpts}
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-5 act-param-container-${id}">
+                            <!-- Dynamic params go here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.getElementById('builder-actions').insertAdjacentHTML('beforeend', html);
+        updateActionParamsUI(id); // Initialize first param input
+    }
+
+    // Initialize builder with default 1 action
+    document.addEventListener("DOMContentLoaded", function() {
+        addActionNode();
+    });
+
+    // Handle Save
+    document.getElementById('wb-save-btn').addEventListener('click', function() {
+        const errorDiv = document.getElementById('wb-error');
+        errorDiv.style.display = 'none';
+        
+        const payload = {
+            name: document.getElementById('wb-name').value.trim(),
+            department_id: document.getElementById('wb-department').value || null,
+            trigger_event: document.getElementById('wb-trigger').value,
+            conditions: [],
+            actions: []
+        };
+
+        if (!payload.name) {
+            errorDiv.textContent = 'חובה להזין שם לתהליך.';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        // Gather Conditions
+        document.querySelectorAll('.cond-node').forEach(node => {
+            const idMatch = node.id.match(/\d+/);
+            if(idMatch) {
+                const id = idMatch[0];
+                const field = document.querySelector(`.cond-field-${id}`).value;
+                const op = document.querySelector(`.cond-op-${id}`).value;
+                let val = document.querySelector(`.cond-val-${id}`).value;
+                
+                // Convert type if needed
+                if(field === 'is_overdue') val = (val === 'true');
+                if(field === 'department_id') val = parseInt(val);
+
+                payload.conditions.push({ field: field, operator: op, value: val });
+            }
         });
-    }
-    conditionField.addEventListener('change', updateConditionUI);
-    updateConditionUI();
 
-    const actionType = document.getElementById('actionType');
-    const actionHelp = document.getElementById('actionHelp');
-    const actionPriorityWrap = document.getElementById('actionPriorityWrap');
-    const actionUserWrap = document.getElementById('actionUserWrap');
+        // Gather Actions
+        document.querySelectorAll('.act-node').forEach(node => {
+            const idMatch = node.id.match(/\d+/);
+            if(idMatch) {
+                const id = idMatch[0];
+                const type = document.querySelector(`.act-type-${id}`).value;
+                const params = {};
+                
+                const paramInput = document.querySelector(`.act-param-${id}`);
+                if (paramInput) {
+                    if (type === 'change_priority') params.priority = paramInput.value;
+                    if (type === 'reassign_to') params.user_id = parseInt(paramInput.value);
+                }
 
-    function updateActionUI() {
-        const type = actionType.value;
-        actionHelp.textContent = actionHelpText[type] || '';
-        actionPriorityWrap.style.display = (type === 'change_priority') ? 'block' : 'none';
-        actionUserWrap.style.display = (type === 'reassign_to') ? 'block' : 'none';
-        actionPriorityWrap.querySelector('select').disabled = (type !== 'change_priority');
-        actionUserWrap.querySelector('select').disabled = (type !== 'reassign_to');
-    }
-    actionType.addEventListener('change', updateActionUI);
-    updateActionUI();
-});
+                payload.actions.push({ type: type, params: params });
+            }
+        });
+
+        if (payload.actions.length === 0) {
+            errorDiv.textContent = 'חובה להגדיר לפחות פעולה אחת (THEN).';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        // Submit JSON via Fetch
+        const btn = this;
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> שומר...';
+        btn.disabled = true;
+
+        fetch('/admin/automations', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': CSRF_TOKEN
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Success - Flash is already set on server, just reload
+                window.location.reload();
+            } else {
+                errorDiv.textContent = data.message || 'שגיאה בשמירת התהליך.';
+                errorDiv.style.display = 'block';
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        })
+        .catch(err => {
+            errorDiv.textContent = 'שגיאת תקשורת עם השרת.';
+            errorDiv.style.display = 'block';
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
+    });
+
 </script>
 
 {% endblock %}
