@@ -12,11 +12,11 @@ from datetime import date, datetime, timedelta
 
 bp = Blueprint("dashboard", __name__)
 
-
 @bp.route("/dashboard")
 @login_required
 def dashboard():
     today = date.today()
+    now = datetime.utcnow()
 
     # היקף הנתונים בדשבורד תלוי בתפקיד: מנהל מערכת רואה הכל, מנהל תחום רואה
     # את המחלקה שלו, ועובד רואה רק את המשימות שהוקצו לו.
@@ -36,7 +36,7 @@ def dashboard():
     open_count = len(open_tasks)
     completion_percent = int((done_count / total * 100)) if total > 0 else 0
 
-    high_priority = len([t for t in open_tasks if t.priority == "HIGH"])
+    high_priority = len([t for t in open_tasks if t.priority == "HIGH" or t.priority == "CRITICAL"])
     medium_priority = len([t for t in open_tasks if t.priority == "MEDIUM"])
     low_priority = len([t for t in open_tasks if t.priority == "LOW"])
     
@@ -45,12 +45,19 @@ def dashboard():
     done_estimated_minutes = sum([t.estimated_minutes for t in done_tasks if t.estimated_minutes])
 
     today_tasks = [t for t in open_tasks if t.due_date == today]
-    urgent_list = [t for t in open_tasks if (t.priority == "HIGH" or (t.due_date and t.due_date < today))]
+    urgent_list = [t for t in open_tasks if (t.priority == "HIGH" or t.priority == "CRITICAL" or (t.due_date and t.due_date < today))]
     urgent_list = sorted(urgent_list, key=lambda x: x.due_date or date.max)[:5]
 
     # מספר ימי האיחור בפועל לכל משימה (במקום דגל בינארי "באיחור/לא") - עוזר לתעדף
     for t in urgent_list:
         t.days_overdue = (today - t.due_date).days if (t.due_date and t.due_date < today) else 0
+
+    # ===============================
+    # Phase 4.4: Command Center Queries
+    # ===============================
+    sla_breached = [t for t in open_tasks if t.sla_breach_at and t.sla_breach_at < now]
+    stuck_tasks = [t for t in open_tasks if t.status == 'IN_PROGRESS' and (t.updated_at or t.created_at) < now - timedelta(days=3)]
+    unassigned_open = [t for t in open_tasks if not t.assigned_to_id]
 
     # פירוט ביצועים לפי מחלקה - רלוונטי רק למנהל מערכת (תמונה ארגונית מלאה)
     department_stats = []
@@ -66,7 +73,7 @@ def dashboard():
             dept_total = len(dept_tasks)
             dept_done = len([t for t in dept_tasks if t.status == "DONE"])
             
-            # עומס עבודה פתוח ברמת מחלקה (Phase 4)
+            # עומס עבודה פתוח ברמת מחלקה
             dept_open_minutes = sum([t.estimated_minutes for t in dept_tasks if t.status != "DONE" and t.estimated_minutes])
             
             department_stats.append({
@@ -91,7 +98,8 @@ def dashboard():
         total_estimated_minutes=total_estimated_minutes,
         done_estimated_minutes=done_estimated_minutes,
         today_tasks=today_tasks, urgent_list=urgent_list,
-        department_stats=department_stats, unassigned_dept_count=unassigned_dept_count
+        department_stats=department_stats, unassigned_dept_count=unassigned_dept_count,
+        sla_breached=sla_breached, stuck_tasks=stuck_tasks, unassigned_open=unassigned_open
     )
 
 
@@ -193,7 +201,7 @@ def admin_edit_user(user_id):
     if current_user.role not in (ROLE_ADMIN, ROLE_MANAGER):
         return redirect(url_for('tasks.index'))
 
-    user_to_edit = db.get_or_404(User, user_id)
+    user_to_edit = db.session.get(User, user_id)
 
     if not current_user.can_manage_user(user_to_edit):
         flash("אינך רשאי לערוך משתמש זה.", "danger")
@@ -290,7 +298,7 @@ def delete_user(user_id):
     if current_user.role not in (ROLE_ADMIN, ROLE_MANAGER):
         return redirect(url_for('tasks.index'))
 
-    user_to_delete = db.get_or_404(User, user_id)
+    user_to_delete = db.session.get(User, user_id)
 
     if user_to_delete.username == 'mv':
         flash("אי אפשר למחוק את חשבון המנהל הראשי!", "danger")
@@ -361,7 +369,7 @@ def delete_department(dept_id):
     if current_user.role != ROLE_ADMIN:
         return redirect(url_for('tasks.index'))
 
-    dept = db.get_or_404(Department, dept_id)
+    dept = db.session.get(Department, dept_id)
     if User.query.filter_by(department_id=dept.id).count() > 0:
         flash("לא ניתן למחוק מחלקה שיש בה משתמשים. יש להעביר אותם למחלקה אחרת קודם.", "danger")
     else:
@@ -421,7 +429,7 @@ def delete_template(template_id):
     if current_user.role not in (ROLE_ADMIN, ROLE_MANAGER):
         return redirect(url_for('tasks.index'))
 
-    template = db.get_or_404(TaskTemplate, template_id)
+    template = db.session.get(TaskTemplate, template_id)
     if current_user.role == ROLE_MANAGER and template.department_id != current_user.department_id:
         flash("אינך רשאי למחוק תבנית זו.", "danger")
         return redirect(url_for("dashboard.admin_templates"))
@@ -435,7 +443,7 @@ def delete_template(template_id):
 
 
 # =========================================================
-# 📜 יומן ביקורת - מי עשה מה (admin בלבד) - כולל מערכת סינון (Phase 4)
+# 📜 יומן ביקורת - מי עשה מה (admin בלבד)
 # =========================================================
 
 _AUDIT_ACTION_LABELS = {
@@ -468,7 +476,6 @@ def audit_log():
     
     query = AuditLog.query
 
-    # פילטור דינמי מבוסס פרמטרים ב-GET (Phase 4)
     filter_user_id = request.args.get("user_id", "")
     if filter_user_id.isdigit():
         query = query.filter(AuditLog.user_id == int(filter_user_id))
@@ -598,7 +605,7 @@ def toggle_automation_rule(rule_id):
     if current_user.role != ROLE_ADMIN:
         return redirect(url_for('tasks.index'))
 
-    rule = db.get_or_404(AutomationRule, rule_id)
+    rule = db.session.get(AutomationRule, rule_id)
     automation_service.update_rule(current_user, rule, is_active=not rule.is_active)
     flash(f"הכלל '{rule.name}' {'הופעל' if rule.is_active else 'הושבת'}.", "success")
     return redirect(url_for("dashboard.admin_automations"))
@@ -610,7 +617,7 @@ def delete_automation_rule(rule_id):
     if current_user.role != ROLE_ADMIN:
         return redirect(url_for('tasks.index'))
 
-    rule = db.get_or_404(AutomationRule, rule_id)
+    rule = db.session.get(AutomationRule, rule_id)
     rule_name = rule.name
     automation_service.delete_rule(current_user, rule)
     flash(f"הכלל '{rule_name}' נמחק.", "success")
