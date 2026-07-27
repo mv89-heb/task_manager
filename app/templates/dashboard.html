@@ -11,33 +11,56 @@
     </div>
 </div>
 
-<div class="row g-4 mb-4">
-    <div class="col-md-3">
-        <div class="card-modern p-4 shadow-sm text-center border-bottom border-primary border-4 stat-card" style="animation-delay: 0.03s;">
-            <i class="bi bi-list-check fs-3 text-primary mb-2 d-block"></i>
-            <h6 class="text-muted mb-2">סה"כ משימות</h6>
-            <h2 class="mb-0 fw-bold">{{total}}</h2>
+<div class="row g-3 mb-4">
+    <!-- שינוי ל-6 עמודות גמישות כדי להכיל את נתוני העומס מ-Phase 4 -->
+    <div class="col-md-4 col-lg-2">
+        <div class="card-modern p-3 shadow-sm text-center border-bottom border-primary border-4 stat-card" style="animation-delay: 0.03s;">
+            <i class="bi bi-list-check fs-4 text-primary mb-1 d-block"></i>
+            <h6 class="text-muted mb-1 small">סה"כ משימות</h6>
+            <h3 class="mb-0 fw-bold">{{total}}</h3>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card-modern p-4 shadow-sm text-center border-bottom border-success border-4 stat-card" style="animation-delay: 0.09s;">
-            <i class="bi bi-check-circle fs-3 text-success mb-2 d-block"></i>
-            <h6 class="text-muted mb-2">הושלמו</h6>
-            <h2 class="mb-0 fw-bold text-success">{{done}}</h2>
+    <div class="col-md-4 col-lg-2">
+        <div class="card-modern p-3 shadow-sm text-center border-bottom border-success border-4 stat-card" style="animation-delay: 0.09s;">
+            <i class="bi bi-check-circle fs-4 text-success mb-1 d-block"></i>
+            <h6 class="text-muted mb-1 small">הושלמו</h6>
+            <h3 class="mb-0 fw-bold text-success">{{done}}</h3>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card-modern p-4 shadow-sm text-center border-bottom border-danger border-4 stat-card" style="animation-delay: 0.15s;">
-            <i class="bi bi-exclamation-triangle fs-3 text-danger mb-2 d-block"></i>
-            <h6 class="text-muted mb-2">עדיפות גבוהה (פתוח)</h6>
-            <h2 class="mb-0 fw-bold text-danger">{{high_priority}}</h2>
+    <div class="col-md-4 col-lg-2">
+        <div class="card-modern p-3 shadow-sm text-center border-bottom border-danger border-4 stat-card" style="animation-delay: 0.15s;">
+            <i class="bi bi-exclamation-triangle fs-4 text-danger mb-1 d-block"></i>
+            <h6 class="text-muted mb-1 small">עדיפות גבוהה (פתוח)</h6>
+            <h3 class="mb-0 fw-bold text-danger">{{high_priority}}</h3>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card-modern p-4 shadow-sm text-center border-bottom border-warning border-4 stat-card" style="animation-delay: 0.21s;">
-            <i class="bi bi-hourglass-split fs-3 text-warning mb-2 d-block"></i>
-            <h6 class="text-muted mb-2">באיחור</h6>
-            <h2 class="mb-0 fw-bold text-warning">{{overdue_count}}</h2>
+    <div class="col-md-4 col-lg-2">
+        <div class="card-modern p-3 shadow-sm text-center border-bottom border-warning border-4 stat-card" style="animation-delay: 0.21s;">
+            <i class="bi bi-hourglass-split fs-4 text-warning mb-1 d-block"></i>
+            <h6 class="text-muted mb-1 small">באיחור</h6>
+            <h3 class="mb-0 fw-bold text-warning">{{overdue_count}}</h3>
+        </div>
+    </div>
+    <div class="col-md-4 col-lg-2">
+        <div class="card-modern p-3 shadow-sm text-center border-bottom border-info border-4 stat-card" style="animation-delay: 0.27s;">
+            <i class="bi bi-clock-history fs-4 text-info mb-1 d-block"></i>
+            <h6 class="text-muted mb-1 small">עומס עבודה נותר</h6>
+            <h3 class="mb-0 fw-bold">
+                {% set hrs = total_estimated_minutes // 60 %}
+                {% set mins = total_estimated_minutes % 60 %}
+                {% if hrs > 0 %}{{ hrs }}ש' {% endif %}{{ mins }}ד'
+            </h3>
+        </div>
+    </div>
+    <div class="col-md-4 col-lg-2">
+        <div class="card-modern p-3 shadow-sm text-center border-bottom border-secondary border-4 stat-card" style="animation-delay: 0.33s;">
+            <i class="bi bi-clock-fill fs-4 text-secondary mb-1 d-block"></i>
+            <h6 class="text-muted mb-1 small">זמן שבוצע</h6>
+            <h3 class="mb-0 fw-bold text-secondary">
+                {% set d_hrs = done_estimated_minutes // 60 %}
+                {% set d_mins = done_estimated_minutes % 60 %}
+                {% if d_hrs > 0 %}{{ d_hrs }}ש' {% endif %}{{ d_mins }}ד'
+            </h3>
         </div>
     </div>
 </div>
@@ -133,6 +156,7 @@
                     <th class="ps-4">מחלקה</th>
                     <th>חברי צוות</th>
                     <th>משימות פתוחות</th>
+                    <th>זמן עבודה נותר</th>
                     <th>הושלמו</th>
                     <th style="min-width: 160px;">אחוז השלמה</th>
                 </tr>
@@ -143,6 +167,11 @@
                     <td class="ps-4 fw-bold">{{ d.name }}</td>
                     <td><span class="badge bg-info text-dark">{{ d.member_count }}</span></td>
                     <td>{{ d.open }}</td>
+                    <td class="small text-muted">
+                        {% set o_hrs = d.open_minutes // 60 %}
+                        {% set o_mins = d.open_minutes % 60 %}
+                        {% if o_hrs > 0 %}{{ o_hrs }}ש'{% endif %} {{ o_mins }}ד'
+                    </td>
                     <td class="text-success fw-semibold">{{ d.done }}</td>
                     <td>
                         <div class="d-flex align-items-center gap-2">
