@@ -18,6 +18,24 @@ from sqlalchemy import text
 
 bp = Blueprint("tasks", __name__)
 
+# =========================================================
+# System Health Check (Phase 4)
+# =========================================================
+@bp.route("/api/health")
+def health_check():
+    """מספק נקודת חיבור (Readiness/Liveness Probe) לבדיקת זמינות מסד הנתונים"""
+    try:
+        db.session.execute(text('SELECT 1'))
+        db_status = True
+    except Exception as e:
+        db_status = False
+    
+    return jsonify({
+        "status": "ok" if db_status else "error",
+        "db_online": db_status,
+        "timestamp": datetime.utcnow().isoformat()
+    }), 200 if db_status else 500
+
 
 @bp.route("/service-worker.js")
 def service_worker():
@@ -1117,7 +1135,7 @@ def bulk_delete_tasks():
 
 
 # =========================================================
-# 📤 ייצוא דוחות (Excel / PDF) - מכבד את אותם הסינונים שהוצגו במסך
+# 📤 ייצוא דוחות (Excel / PDF) - מכבד את אותם הסינונים שהוצגו במסך (Phase 4 Updates)
 # =========================================================
 
 _STATUS_LABELS_HE = {"TODO": "לביצוע", "IN_PROGRESS": "בתהליך", "DONE": "בוצע"}
@@ -1143,7 +1161,8 @@ def export_excel():
     ws.title = "משימות"
     ws.sheet_view.rightToLeft = True
 
-    headers = ["כותרת", "תיאור", "סטטוס", "עדיפות", "אחראי", "תאריך יעד", "חזרתיות", "נוצר בתאריך"]
+    # הרחבת הכותרות (Phase 4)
+    headers = ["כותרת", "תיאור", "סטטוס", "עדיפות", "אחראי", "תאריך יעד", "זמן מוערך (דק')", "משימת-אב", "מספר תלויות", "חזרתיות", "נוצר בתאריך"]
     ws.append(headers)
     header_fill = PatternFill(start_color="1D3A8A", end_color="1D3A8A", fill_type="solid")
     for cell in ws[1]:
@@ -1159,6 +1178,9 @@ def export_excel():
             _PRIORITY_LABELS_HE.get(t.priority, t.priority),
             t.assignee.username if t.assignee else "",
             t.due_date.strftime("%d/%m/%Y") if t.due_date else "",
+            t.estimated_minutes or 0,
+            t.parent_task.title if t.parent_task else "",
+            t.dependencies.count(),
             RECURRENCE_LABELS_HE_EXPORT.get(t.recurrence, "חד פעמית"),
             t.created_at.strftime("%d/%m/%Y") if t.created_at else "",
         ])
@@ -1204,7 +1226,8 @@ def export_pdf():
     title_style = ParagraphStyle("HeTitle", fontName="HebrewFont-Bold", fontSize=18, alignment=1, spaceAfter=14)
     elements = [Paragraph(he(f"דוח משימות - {date.today().strftime('%d/%m/%Y')}"), title_style)]
 
-    headers = [he("כותרת"), he("סטטוס"), he("עדיפות"), he("אחראי"), he("תאריך יעד")]
+    # הרחבת הכותרות (Phase 4)
+    headers = [he("כותרת"), he("סטטוס"), he("עדיפות"), he("אחראי"), he("יעד"), he("זמן (דק')"), he("תלויות")]
     data = [headers]
     for t in tasks_list:
         data.append([
@@ -1213,9 +1236,12 @@ def export_pdf():
             he(_PRIORITY_LABELS_HE.get(t.priority, t.priority)),
             he(t.assignee.username if t.assignee else "-"),
             t.due_date.strftime("%d/%m/%Y") if t.due_date else "-",
+            str(t.estimated_minutes or 0),
+            str(t.dependencies.count()),
         ])
 
-    table = Table(data, repeatRows=1, colWidths=[9 * cm, 3 * cm, 3 * cm, 4 * cm, 3.5 * cm])
+    # התאמת רוחבי העמודות כך שייכנסו לרוחב דף A4 שוכב (~26 ס"מ נטו מרווח)
+    table = Table(data, repeatRows=1, colWidths=[6.5 * cm, 2.5 * cm, 2.5 * cm, 3.5 * cm, 3 * cm, 2 * cm, 2 * cm])
     table.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, -1), "HebrewFont"),
         ("FONTNAME", (0, 0), (-1, 0), "HebrewFont-Bold"),
@@ -1238,32 +1264,6 @@ def export_pdf():
 
 
 RECURRENCE_LABELS_HE_EXPORT = {"NONE": "חד פעמית", "DAILY": "כל יום", "WEEKLY": "כל שבוע", "MONTHLY": "כל חודש"}
-
-
-@bp.route("/calendar")
-@login_required
-def calendar():
-    return render_template("calendar.html")
-
-@bp.route("/api/calendar_tasks")
-@login_required
-def calendar_tasks():
-    # דיווחים ציבוריים לא מוצגים כאן (יש להם לשונית נפרדת) - עקביות עם הרשימה הראשית
-    tasks = visible_task_query(current_user).filter(Task.due_date.isnot(None), Task.source != "public").all()
-
-    events = []
-    for t in tasks:
-        color = "#22c55e" if t.status == "DONE" else ("#ef4444" if t.priority == "HIGH" else "#3b82f6")
-        can_edit = can_create_tasks(current_user) and can_touch_task(current_user, t)
-        events.append({ 
-            "id": t.id, 
-            "title": t.title, 
-            "start": t.due_date.isoformat(), 
-            "backgroundColor": color, 
-            "borderColor": color, 
-            "url": f"/edit/{t.id}" if can_edit else "#" 
-        })
-    return jsonify(events)
 
 
 # =========================================================
