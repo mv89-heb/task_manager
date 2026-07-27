@@ -64,6 +64,50 @@
         </div>
     </div>
 </div>
+
+<!-- Phase 4.3: Workload Management -->
+<div class="card-modern shadow-sm mt-4 p-0 border-top border-info border-4 mb-4">
+    <div class="p-3 border-bottom bg-light rounded-top d-flex justify-content-between align-items-center">
+        <h6 class="m-0 fw-bold text-info"><i class="bi bi-people-fill"></i> מצב עומסי צוות (Workload)</h6>
+        <span class="badge bg-secondary">מבוסס על שעות הערכה ומשימות פתוחות</span>
+    </div>
+    <div class="p-3">
+        <div class="row g-4">
+            {% for w in team_workload %}
+            <div class="col-md-6 col-lg-4">
+                <div class="border rounded p-3 position-relative bg-white shadow-sm h-100 stat-card">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="fw-bold">{{ w.user.username }}</div>
+                        <span class="badge bg-{{ w.status_color }}">{{ w.load_percentage }}% עומס</span>
+                    </div>
+                    
+                    <div class="progress mb-3" style="height: 8px;">
+                        <div class="progress-bar bg-{{ w.status_color }}" role="progressbar" style="width: {{ w.visual_percent }}%;"></div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between text-muted small">
+                        <span><i class="bi bi-list-task"></i> {{ w.task_count }} משימות</span>
+                        <span><i class="bi bi-clock"></i> {{ w.total_hours }} שעות עבודה</span>
+                    </div>
+                    
+                    {% if w.overdue_count > 0 or w.high_priority_count > 0 %}
+                    <div class="mt-2 pt-2 border-top d-flex justify-content-between small">
+                        {% if w.overdue_count > 0 %}
+                        <span class="text-danger fw-semibold"><i class="bi bi-exclamation-circle"></i> {{ w.overdue_count }} באיחור</span>
+                        {% endif %}
+                        {% if w.high_priority_count > 0 %}
+                        <span class="text-danger"><i class="bi bi-fire"></i> {{ w.high_priority_count }} דחופות</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% else %}
+            <div class="col-12 text-center text-muted py-4">אין עובדים תחת ניהולך או שאין משימות פתוחות.</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
 {% endif %}
 
 <div class="card-modern p-3 shadow-sm mb-4">
@@ -173,6 +217,31 @@
                 </li>
                 {% else %}
                 <li class="list-group-item text-center text-muted p-4">אין משימות שמועד הסיום שלהן הוא היום.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="card-modern shadow-sm">
+            <div class="p-3 border-bottom rounded-top d-flex justify-content-between align-items-center" style="background: var(--bs-tertiary-bg);">
+                <h6 class="m-0 fw-bold text-danger"><i class="bi bi-exclamation-octagon"></i> לטיפול דחוף (איחורים / עדיפות גבוהה)</h6>
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for t in urgent_list %}
+                <li class="list-group-item d-flex justify-content-between align-items-center p-3">
+                    <div>
+                        <div class="fw-bold">{{t.title}}</div>
+                        <div class="small text-danger">
+                            {% if t.priority == "HIGH" or t.priority == "CRITICAL" %} עדיפות דחופה | {% endif %}
+                            {% if t.due_date %} יעד: {{t.due_date.strftime('%d/%m/%Y')}} {% endif %}
+                            {% if t.days_overdue and t.days_overdue > 0 %}
+                                <span class="badge bg-danger ms-1">{{ t.days_overdue }} {% if t.days_overdue == 1 %}יום{% else %}ימים{% endif %} באיחור</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <a href="/edit/{{t.id}}" class="btn btn-sm btn-light border">צפה</a>
+                </li>
+                {% else %}
+                <li class="list-group-item text-center text-muted p-4">איזה יופי! אין משימות דחופות או באיחור.</li>
                 {% endfor %}
             </ul>
         </div>
