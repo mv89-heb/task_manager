@@ -10,7 +10,7 @@ from app.models.comment import TaskComment
 from app.models.notification import Notification, notify, notify_with_email, queue_email, notify_recipients_multi_channel
 from app.models.task_template import TaskTemplate
 from app.models.audit_log import log_audit
-from app.services import automation_service
+from app.services import automation_service, sla_service
 from app import db, mail, limiter
 from flask_mail import Message
 from datetime import datetime, date, timedelta
@@ -19,7 +19,7 @@ from sqlalchemy import text
 bp = Blueprint("tasks", __name__)
 
 # =========================================================
-# System Health Check (Phase 4)
+# System Health Check (Phase 4.0)
 # =========================================================
 @bp.route("/api/health")
 def health_check():
@@ -112,7 +112,7 @@ def apply_task_filters(query, user, args):
     if sort_by == "due_date":
         query = query.order_by(Task.due_date.asc())
     elif sort_by == "priority":
-        priority_order = db.case((Task.priority == "HIGH", 0), (Task.priority == "MEDIUM", 1), else_=2)
+        priority_order = db.case((Task.priority == "CRITICAL", 0), (Task.priority == "HIGH", 1), (Task.priority == "MEDIUM", 2), else_=3)
         query = query.order_by(priority_order)
     else:
         query = query.order_by(Task.created_at.desc())
@@ -164,8 +164,11 @@ def _create_next_recurrence(task):
         due_date=_next_due_date(task.due_date, task.recurrence),
         recurrence=task.recurrence,
         recurrence_parent_id=task.id,
+        task_type=task.task_type # Phase 4.2 SLA
     )
     db.session.add(next_task)
+    db.session.flush() # חייב בשביל לקבל תאריך יצירה ו-ID לפני השמת SLA
+    sla_service.assign_sla(next_task) # Phase 4.2 SLA
     db.session.commit()
     return next_task
 
@@ -280,8 +283,11 @@ def public_report():
             source="public",
             reporter_name=reporter_name,
             reporter_phone=reporter_phone,
+            task_type="דיווח פומבי" # Phase 4.2 SLA
         )
         db.session.add(task)
+        db.session.flush() # חייב בשביל תאריך היצירה
+        sla_service.assign_sla(task) # Phase 4.2 SLA
         db.session.commit()
 
         for recipient in recipients:
@@ -387,8 +393,11 @@ def index():
             user_id=current_user.id,
             assigned_to_id=assigned_to_id,
             recurrence=new_recurrence,
+            task_type=request.form.get("task_type", "") # Phase 4.2 SLA
         )
         db.session.add(task)
+        db.session.flush() # חייב בשביל לקבל ID ו- created_at לפני חישוב SLA
+        sla_service.assign_sla(task) # Phase 4.2 SLA
         db.session.commit()
 
         if task.assigned_to_id and task.assigned_to_id != current_user.id:
@@ -405,7 +414,7 @@ def index():
                     f"כותרת: {task.title}\n"
                     f"{'תיאור: ' + task.description if task.description else ''}\n"
                     f"{'תאריך יעד: ' + task.due_date.strftime('%d/%m/%Y') if task.due_date else ''}\n"
-                    f"עדיפות: {_PRIORITY_LABELS_HE.get(task.priority, task.priority)}"
+                    f"עדיפות: {task.priority}"
                 )
             )
             if assignee_obj.email and not email_ok:
@@ -524,7 +533,14 @@ def edit(id):
     if request.method == "POST":
         task.title = request.form.get("title", "")
         task.description = request.form.get("description", "")
+        
+        # שמירת מצב קודם לבדיקת חישוב מחדש של SLA
+        old_priority = task.priority
+        old_department = task.department_id
+        old_type = task.task_type
+        
         task.priority = request.form.get("priority", "LOW")
+        task.task_type = request.form.get("task_type", "")
 
         new_recurrence = request.form.get("recurrence", "NONE")
         if new_recurrence in ("NONE", "DAILY", "WEEKLY", "MONTHLY"):
@@ -585,6 +601,10 @@ def edit(id):
         if request.form.get("remove_image") == "1":
             task.image_data = None
             task.image_mimetype = None
+
+        # Phase 4.2 SLA: חישוב מחדש של ה-SLA אם שדה רלוונטי השתנה
+        if old_priority != task.priority or old_department != task.department_id or old_type != task.task_type:
+            sla_service.assign_sla(task)
 
         db.session.commit()
 
@@ -789,7 +809,7 @@ def calendar_tasks():
 
     events = []
     for t in tasks:
-        color = "#22c55e" if t.status == "DONE" else ("#ef4444" if t.priority == "HIGH" else "#3b82f6")
+        color = "#22c55e" if t.status == "DONE" else ("#ef4444" if t.priority in ("HIGH", "CRITICAL") else "#3b82f6")
         can_edit = can_create_tasks(current_user) and can_touch_task(current_user, t)
         events.append({ 
             "id": t.id, 
@@ -1166,7 +1186,7 @@ def bulk_delete_tasks():
 # =========================================================
 
 _STATUS_LABELS_HE = {"TODO": "לביצוע", "IN_PROGRESS": "בתהליך", "DONE": "בוצע"}
-_PRIORITY_LABELS_HE = {"HIGH": "גבוהה", "MEDIUM": "בינונית", "LOW": "נמוכה"}
+_PRIORITY_LABELS_HE = {"CRITICAL": "קריטית", "HIGH": "גבוהה", "MEDIUM": "בינונית", "LOW": "נמוכה"}
 
 
 def _filtered_tasks_for_export():
@@ -1189,7 +1209,7 @@ def export_excel():
     ws.sheet_view.rightToLeft = True
 
     # הרחבת הכותרות (Phase 4)
-    headers = ["כותרת", "תיאור", "סטטוס", "עדיפות", "אחראי", "תאריך יעד", "זמן מוערך (דק')", "משימת-אב", "מספר תלויות", "חזרתיות", "נוצר בתאריך"]
+    headers = ["כותרת", "תיאור", "סטטוס", "עדיפות", "סוג משימה", "אחראי", "תאריך יעד", "חריגת SLA", "זמן מוערך (דק')", "משימת-אב", "מספר תלויות", "חזרתיות", "נוצר בתאריך"]
     ws.append(headers)
     header_fill = PatternFill(start_color="1D3A8A", end_color="1D3A8A", fill_type="solid")
     for cell in ws[1]:
@@ -1203,8 +1223,10 @@ def export_excel():
             t.description or "",
             _STATUS_LABELS_HE.get(t.status, t.status),
             _PRIORITY_LABELS_HE.get(t.priority, t.priority),
+            t.task_type or "",
             t.assignee.username if t.assignee else "",
             t.due_date.strftime("%d/%m/%Y") if t.due_date else "",
+            t.sla_breach_at.strftime("%d/%m/%Y %H:%M") if t.sla_breach_at else "",
             t.estimated_minutes or 0,
             t.parent_task.title if t.parent_task else "",
             t.dependencies.count(),
@@ -1254,7 +1276,7 @@ def export_pdf():
     elements = [Paragraph(he(f"דוח משימות - {date.today().strftime('%d/%m/%Y')}"), title_style)]
 
     # הרחבת הכותרות (Phase 4)
-    headers = [he("כותרת"), he("סטטוס"), he("עדיפות"), he("אחראי"), he("יעד"), he("זמן (דק')"), he("תלויות")]
+    headers = [he("כותרת"), he("סטטוס"), he("עדיפות"), he("אחראי"), he("יעד"), he("חריגה"), he("סוג")]
     data = [headers]
     for t in tasks_list:
         data.append([
@@ -1263,12 +1285,12 @@ def export_pdf():
             he(_PRIORITY_LABELS_HE.get(t.priority, t.priority)),
             he(t.assignee.username if t.assignee else "-"),
             t.due_date.strftime("%d/%m/%Y") if t.due_date else "-",
-            str(t.estimated_minutes or 0),
-            str(t.dependencies.count()),
+            t.sla_breach_at.strftime("%d/%m %H:%M") if t.sla_breach_at else "-",
+            he(t.task_type or "-"),
         ])
 
     # התאמת רוחבי העמודות כך שייכנסו לרוחב דף A4 שוכב (~26 ס"מ נטו מרווח)
-    table = Table(data, repeatRows=1, colWidths=[6.5 * cm, 2.5 * cm, 2.5 * cm, 3.5 * cm, 3 * cm, 2 * cm, 2 * cm])
+    table = Table(data, repeatRows=1, colWidths=[6.0 * cm, 2.5 * cm, 2.5 * cm, 3.5 * cm, 3.0 * cm, 3.5 * cm, 3.5 * cm])
     table.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, -1), "HebrewFont"),
         ("FONTNAME", (0, 0), (-1, 0), "HebrewFont-Bold"),
