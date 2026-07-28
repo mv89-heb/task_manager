@@ -1,4 +1,6 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+import string
+import random
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
 from sqlalchemy.orm import joinedload
 from app.models.task import Task
@@ -292,6 +294,55 @@ def admin_edit_user(user_id):
         possible_managers=possible_managers,
         role_labels=ROLE_LABELS,
     )
+
+
+@bp.route("/admin/user/<int:user_id>/quick_reset", methods=["POST"])
+@login_required
+def quick_password_reset(user_id):
+    """
+    נקודת קצה חדשה לאיפוס סיסמה אופרטיבי (Admin Tools).
+    תומכת גם בשליחת קישור למייל (למשתמשים עם תיבה) 
+    וגם ביצירת סיסמה זמנית מידית עם חובת החלפה (לעובדי שטח נטולי אימייל).
+    """
+    if current_user.role not in (ROLE_ADMIN, ROLE_MANAGER):
+        return jsonify({"success": False, "message": "אין הרשאה לפעולה זו."}), 403
+
+    user = db.session.get(User, user_id)
+    if not user or not current_user.can_manage_user(user):
+        return jsonify({"success": False, "message": "המשתמש לא נמצא או שאין לך הרשאה לנהל אותו."}), 403
+
+    data = request.get_json() or {}
+    mode = data.get("mode", "manual")
+
+    if mode == "email":
+        if not user.email:
+            return jsonify({"success": False, "message": "למשתמש זה אין כתובת אימייל מוגדרת במערכת."}), 400
+        
+        from app.routes.tasks import send_reset_email
+        send_reset_email(user)
+        
+        log_audit(current_user, "reset_user_password", target_type="user", target_id=user.id, target_label=user.username, details="נשלח קישור לאיפוס למייל")
+        return jsonify({"success": True, "message": f"קישור מאובטח לאיפוס סיסמה נשלח אל {user.email}"})
+
+    elif mode == "manual":
+        # יצירת סיסמה זמנית מאובטחת אך קלה להקראה (לדוגמה: Reset4829!)
+        temp_password = "Reset" + "".join(random.choices(string.digits, k=4)) + "!"
+        
+        user.set_password(temp_password)
+        # נועל את העובד למסך שינוי סיסמה ברגע שהוא מתחבר
+        user.must_change_password = True
+        db.session.commit()
+        
+        log_audit(current_user, "reset_user_password", target_type="user", target_id=user.id, target_label=user.username, details="איפוס מהיר לסיסמה זמנית קשיחה")
+        
+        return jsonify({
+            "success": True,
+            "temp_password": temp_password,
+            "username": user.username,
+            "phone": user.phone or ""
+        })
+        
+    return jsonify({"success": False, "message": "פעולה לא חוקית."}), 400
 
 
 @bp.route("/admin/delete_user/<int:user_id>", methods=["POST"])
