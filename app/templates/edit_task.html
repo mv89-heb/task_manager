@@ -6,8 +6,13 @@
 
 <div class="card-modern p-4 shadow-sm mb-4" style="border-top: 3px solid var(--brand-blue); animation: fadeInUp 0.35s var(--ease);">
 
-<h5 class="mb-4"><i class="bi bi-pencil-square text-primary"></i> עריכת משימה</h5>
-
+<h5 class="mb-4 d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-pencil-square text-primary"></i> עריכת משימה</span>
+    <span class="badge bg-light text-secondary border fw-normal" style="font-size: 13px;">
+        <i class="bi bi-calendar-plus"></i> נוצרה: {{ task.created_at.strftime('%d/%m/%Y %H:%M') if task.created_at else '-' }}
+    </span>
+</h5>
+    
 {% if task.source == 'public' %}
 <div class="alert alert-danger d-flex align-items-center gap-2 mb-4">
     <i class="bi bi-megaphone fs-5"></i>
