@@ -152,8 +152,10 @@
                 </span>
             </div>
             <a href="/edit/{{ task.id }}" class="text-dark text-decoration-none fw-bold d-block mb-1 fs-6">{{ task.title }}</a>
-            <div class="small text-muted mb-3 text-truncate">{{ task.description or 'ללא תיאור' }}</div>
-            
+            <div class="small text-muted mb-1 text-truncate">{{ task.description or 'ללא תיאור' }}</div>
+            <div class="small text-muted mb-3" style="font-size: 11px;">
+                <i class="bi bi-calendar-plus text-primary"></i> תאריך פתיחה: <span class="fw-semibold">{{ task.created_at.strftime('%d/%m/%Y') if task.created_at else '-' }}</span>
+            </div>            
             <div class="d-flex justify-content-between align-items-center border-top pt-2 mt-2">
                 <div class="d-flex align-items-center gap-2">
                     <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width: 28px; height: 28px; font-size: 11px;">
