@@ -1,5 +1,6 @@
 from app import db
 from datetime import datetime
+from sqlalchemy.orm import synonym
 
 
 class AuditLog(db.Model):
@@ -9,11 +10,13 @@ class AuditLog(db.Model):
     """
     id = db.Column(db.Integer, primary_key=True)
     actor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
-    actor_username = db.Column(db.String(64), nullable=True)  # נשמר גם כטקסט - שרד גם אם המשתמש נמחק אחר כך
+    # תאימות לאחור: גרסאות קוד/בדיקות ישנות השתמשו בשם user_id.
+    user_id = synonym('actor_id')
+    actor_username = db.Column(db.String(64), nullable=True)
     action = db.Column(db.String(50), nullable=False)
     target_type = db.Column(db.String(50), nullable=True)
     target_id = db.Column(db.Integer, nullable=True)
-    target_label = db.Column(db.String(200), nullable=True)  # למשל שם המשתמש/מחלקה שנמחקו
+    target_label = db.Column(db.String(200), nullable=True)
     details = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
