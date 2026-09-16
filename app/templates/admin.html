@@ -25,6 +25,7 @@
                     <th>תפקיד</th>
                     <th>מחלקה</th>
                     <th>משימות פעילות</th>
+                    <th>התחברות אחרונה</th>
                     <th>סטטוס אבטחה</th>
                     <th class="text-end pe-4">פעולות</th>
                 </tr>
@@ -66,6 +67,13 @@
                         <span class="badge bg-light text-dark border px-2 py-1">{{ stat.task_count }} משימות</span>
                     </td>
                     <td>
+                        {% if stat.user.last_login_at %}
+                            <span class="small text-muted"><i class="bi bi-clock-history"></i> {{ stat.user.last_login_at.strftime('%d/%m/%Y %H:%M') }}</span>
+                        {% else %}
+                            <span class="small text-muted"><i class="bi bi-clock"></i> מעולם לא התחבר</span>
+                        {% endif %}
+                    </td>
+                    <td>
                         {% if stat.user.must_change_password %}
                             <span class="badge bg-warning text-dark border border-warning" title="המשתמש יצטרך להחליף סיסמה בכניסה הבאה"><i class="bi bi-exclamation-triangle"></i> חובת איפוס</span>
                         {% else %}
@@ -74,7 +82,6 @@
                     </td>
                     <td class="text-end pe-4">
                         <div class="d-flex justify-content-end gap-1">
-                            <!-- Quick Reset Password Dropdown -->
                             <div class="dropdown d-inline">
                                 <button class="btn btn-sm btn-light border text-warning dropdown-toggle" type="button" data-bs-toggle="dropdown" title="איפוס סיסמה מהיר">
                                     <i class="bi bi-key-fill"></i>
@@ -89,9 +96,7 @@
                                     {% endif %}
                                 </ul>
                             </div>
-                            
                             <a href="/admin/user/{{ stat.user.id }}/edit" class="btn btn-sm btn-light border text-primary" title="עריכת משתמש"><i class="bi bi-pencil"></i></a>
-                            
                             {% if stat.user.username != 'mv' %}
                             <form method="POST" action="/admin/delete_user/{{ stat.user.id }}" class="d-inline" onsubmit="return confirm('האם אתה בטוח שברצונך למחוק משתמש זה? כל משימותיו יימחקו גם כן!')">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -103,7 +108,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="6" class="text-center py-4 text-muted">לא נמצאו משתמשים.</td>
+                    <td colspan="7" class="text-center py-4 text-muted">לא נמצאו משתמשים.</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -111,7 +116,6 @@
     </div>
 </div>
 
-<!-- Quick Reset Modal (Operational Flow) -->
 <div class="modal fade" id="quickResetModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4">
@@ -123,7 +127,6 @@
                 <p class="text-muted mb-2">הסיסמה הזמנית החדשה עבור המשתמש <strong id="qrUsername" class="text-dark"></strong> היא:</p>
                 <div class="display-6 fw-bold text-dark mb-3 py-3 bg-light rounded-3 border" style="letter-spacing: 2px;" id="qrTempPassword"></div>
                 <p class="small text-danger fw-semibold bg-danger bg-opacity-10 p-2 rounded"><i class="bi bi-exclamation-triangle"></i> המערכת תנעל את העובד למסך החלפת סיסמה מיד לאחר שיתחבר עם סיסמה זו.</p>
-                
                 <a id="qrWhatsappBtn" href="#" target="_blank" class="btn btn-success fw-bold w-100 mt-2 rounded-pill shadow-sm"><i class="bi bi-whatsapp fs-5 me-1"></i> שלח לעובד בוואטסאפ</a>
             </div>
             <div class="modal-footer border-top-0">
@@ -136,55 +139,36 @@
 <script>
 function quickResetPassword(userId, mode) {
     const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-    
-    if (mode === 'manual' && !confirm('האם אתה בטוח שברצונך לאפס מיד את הסיסמה למשתמש זה? הוא לא יוכל להתחבר יותר עם הסיסמה הישנה, ותונפק לו סיסמה חדשה אקראית.')) {
-        return;
-    }
-
+    if (mode === 'manual' && !confirm('האם אתה בטוח שברצונך לאפס מיד את הסיסמה למשתמש זה? הוא לא יוכל להתחבר יותר עם הסיסמה הישנה, ותונפק לו סיסמה חדשה אקראית.')) return;
     fetch(`/admin/user/${userId}/quick_reset`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken
-        },
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
         body: JSON.stringify({ mode: mode })
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
             if (mode === 'email') {
-                if (typeof createToast === 'function') createToast(data.message, 'success');
-                else alert(data.message);
-            } else if (mode === 'manual') {
-                // Show Modal with Temp Password
+                if (typeof createToast === 'function') createToast(data.message, 'success'); else alert(data.message);
+            } else {
                 document.getElementById('qrUsername').textContent = data.username;
                 document.getElementById('qrTempPassword').textContent = data.temp_password;
-                
                 const waBtn = document.getElementById('qrWhatsappBtn');
                 if (data.phone) {
                     const message = `היי ${data.username}, הסיסמה שלך למערכת אופסה.\n*הסיסמה הזמנית שלך היא:* ${data.temp_password}\n\nהמערכת תבקש ממך לבחור סיסמה קבועה וחדשה ברגע שתתחבר.`;
                     waBtn.href = `https://wa.me/${data.phone.replace(/\D/g,'')}?text=${encodeURIComponent(message)}`;
                     waBtn.style.display = 'block';
-                } else {
-                    waBtn.style.display = 'none';
-                }
-                
+                } else waBtn.style.display = 'none';
                 const modal = new bootstrap.Modal(document.getElementById('quickResetModal'));
                 modal.show();
-                
-                // Reload page after modal is closed to show the updated security status (Yellow Badge)
-                document.getElementById('quickResetModal').addEventListener('hidden.bs.modal', function () {
-                    window.location.reload();
-                });
+                document.getElementById('quickResetModal').addEventListener('hidden.bs.modal', function () { window.location.reload(); });
             }
         } else {
-            if (typeof createToast === 'function') createToast(data.message, 'danger');
-            else alert(data.message);
+            if (typeof createToast === 'function') createToast(data.message, 'danger'); else alert(data.message);
         }
     })
-    .catch(error => {
-        if (typeof createToast === 'function') createToast('שגיאת תקשורת. נסה שוב.', 'danger');
-        else alert('שגיאת תקשורת. נסה שוב.');
+    .catch(() => {
+        if (typeof createToast === 'function') createToast('שגיאת תקשורת. נסה שוב.', 'danger'); else alert('שגיאת תקשורת. נסה שוב.');
     });
 }
 </script>
