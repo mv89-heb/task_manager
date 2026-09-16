@@ -2,6 +2,7 @@ from datetime import date
 
 from flask import Blueprint, jsonify, render_template, request
 from flask_login import current_user, login_required
+from sqlalchemy import or_
 
 from app import db, csrf
 from app.models.task import Task
@@ -68,7 +69,7 @@ def mobile_tasks():
     search = request.args.get("search", "").strip()
     if search:
         query = query.filter(
-            db.or_(Task.title.ilike(f"%{search}%"), Task.description.ilike(f"%{search}%"))
+            or_(Task.title.ilike(f"%{search}%"), Task.description.ilike(f"%{search}%"))
         )
 
     sort = request.args.get("sort", "due_date")
@@ -117,8 +118,8 @@ def mobile_task(task_id):
 
 
 @mobile_bp.route("/api/mobile/tasks/<int:task_id>/status", methods=["POST"])
-@login_required
 @csrf.exempt
+@login_required
 def mobile_update_status(task_id):
     task = db.session.get(Task, task_id)
     if not task or task.source == "public":
