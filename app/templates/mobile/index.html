@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>Task Manager Mobile</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='mobile/mobile.css') }}">
+</head>
+<body>
+  <main class="app-shell">
+    <section id="login-view" class="view hidden">
+      <div class="brand">ניהול משימות</div>
+      <div class="card login-card">
+        <h1>כניסה</h1>
+        <p class="muted">גרסת מובייל ייעודית למערכת</p>
+        <form id="login-form">
+          <label>שם משתמש<input id="username" name="username" autocomplete="username" required></label>
+          <label>סיסמה<input id="password" name="password" type="password" autocomplete="current-password" required></label>
+          <label class="check"><input id="remember" type="checkbox" checked> זכור אותי</label>
+          <button class="primary" type="submit">התחבר</button>
+          <p id="login-error" class="error"></p>
+        </form>
+      </div>
+    </section>
+
+    <section id="app-view" class="view hidden">
+      <header class="topbar">
+        <div>
+          <div class="brand">ניהול משימות</div>
+          <div id="user-label" class="muted"></div>
+        </div>
+        <button id="logout" class="ghost">יציאה</button>
+      </header>
+
+      <div id="must-change" class="notice hidden">נדרשת החלפת סיסמה. פתח את המערכת הרגילה כדי להשלים את התהליך.</div>
+
+      <div class="stats">
+        <button data-status="TODO"><strong id="count-todo">0</strong><span>לביצוע</span></button>
+        <button data-status="IN_PROGRESS"><strong id="count-progress">0</strong><span>בטיפול</span></button>
+        <button data-status="DONE"><strong id="count-done">0</strong><span>בוצעו</span></button>
+        <button data-status="OVERDUE"><strong id="count-overdue">0</strong><span>באיחור</span></button>
+      </div>
+
+      <div class="toolbar">
+        <input id="search" type="search" placeholder="חיפוש משימה..." autocomplete="off">
+        <select id="sort">
+          <option value="due_date">לפי תאריך יעד</option>
+          <option value="priority">לפי עדיפות</option>
+          <option value="created">חדשות קודם</option>
+        </select>
+      </div>
+
+      <div id="loading" class="muted center">טוען...</div>
+      <div id="task-list" class="task-list"></div>
+      <div id="empty" class="empty hidden">אין משימות להצגה.</div>
+    </section>
+  </main>
+  <script src="{{ url_for('static', filename='mobile/mobile.js') }}" defer></script>
+</body>
+</html>
