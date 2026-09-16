@@ -3,6 +3,7 @@
   const state = { status: "", search: "", sort: "due_date" };
   const statusLabels = { TODO: "לביצוע", IN_PROGRESS: "בטיפול", DONE: "בוצעה" };
   const priorityLabels = { CRITICAL: "קריטית", HIGH: "גבוהה", MEDIUM: "בינונית", LOW: "נמוכה" };
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
 
   function show(view) {
     $("login-view").classList.toggle("hidden", view !== "login");
@@ -94,7 +95,12 @@
     $("login-error").textContent = "";
     const body = new URLSearchParams({ username: $("username").value.trim(), password: $("password").value, remember_me: $("remember").checked ? "1" : "0" });
     try {
-      const response = await fetch("/login", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
+      const response = await fetch("/login", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "X-CSRFToken": csrfToken },
+        body,
+      });
       if (!response.ok) throw new Error("login");
       window.location.reload();
     } catch {
