@@ -1,13 +1,12 @@
 from datetime import date
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import jsonify, render_template, request
 from flask_login import current_user, login_required
 from sqlalchemy import or_
 
 from app import db, csrf
 from app.models.task import Task
-
-mobile_bp = Blueprint("mobile", __name__)
+from app.routes.tasks import bp
 
 
 def _visible_tasks_query():
@@ -35,12 +34,12 @@ def _task_payload(task):
     }
 
 
-@mobile_bp.route("/mobile")
+@bp.route("/mobile")
 def mobile_home():
     return render_template("mobile/index.html")
 
 
-@mobile_bp.route("/api/mobile/me")
+@bp.route("/api/mobile/me")
 def mobile_me():
     if not current_user.is_authenticated:
         return jsonify({"authenticated": False}), 401
@@ -57,7 +56,7 @@ def mobile_me():
     })
 
 
-@mobile_bp.route("/api/mobile/tasks")
+@bp.route("/api/mobile/tasks")
 @login_required
 def mobile_tasks():
     query = _visible_tasks_query()
@@ -105,7 +104,7 @@ def mobile_tasks():
     })
 
 
-@mobile_bp.route("/api/mobile/tasks/<int:task_id>")
+@bp.route("/api/mobile/tasks/<int:task_id>")
 @login_required
 def mobile_task(task_id):
     task = db.session.get(Task, task_id)
@@ -117,7 +116,7 @@ def mobile_task(task_id):
     return jsonify({"task": _task_payload(task)})
 
 
-@mobile_bp.route("/api/mobile/tasks/<int:task_id>/status", methods=["POST"])
+@bp.route("/api/mobile/tasks/<int:task_id>/status", methods=["POST"])
 @csrf.exempt
 @login_required
 def mobile_update_status(task_id):
