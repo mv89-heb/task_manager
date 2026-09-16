@@ -28,7 +28,6 @@ jobs:
       - name: Run test suite
         env:
           PYTHONPATH: .
-          ADMIN_PASSWORD: "test-only-admin-password"
         run: |
           pytest -v --tb=short
 
