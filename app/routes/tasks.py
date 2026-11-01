@@ -474,7 +474,7 @@ def index():
     page = request.args.get("page", 1, type=int)
     sort_by = request.args.get("sort", "created_at")
 
-    pagination = db.paginate(query, page=page, per_page=20, error_out=False)
+    pagination = db.paginate(query.statement, page=page, per_page=20, error_out=False)
 
     # תבניות רלוונטיות למודל יצירת משימה מהירה
     templates = []
