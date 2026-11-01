@@ -35,7 +35,7 @@ def test_pagination_object_uses_20_per_page(app, client, db_session):
         db.session.commit()
 
         query = Task.query.order_by(Task.created_at.desc())
-        pagination = db.paginate(query, page=1, per_page=20, error_out=False)
+        pagination = db.paginate(query.statement, page=1, per_page=20, error_out=False)
         assert len(pagination.items) == 20
         assert pagination.pages == 2
 

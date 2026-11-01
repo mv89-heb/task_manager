@@ -555,7 +555,7 @@ def audit_log():
 
     page = request.args.get("page", 1, type=int)
     pagination = db.paginate(
-        query.order_by(AuditLog.created_at.desc()),
+        query.order_by(AuditLog.created_at.desc()).statement,
         page=page, per_page=30, error_out=False
     )
     
@@ -583,7 +583,9 @@ def admin_automations():
         return redirect(url_for('tasks.index'))
 
     if request.method == "POST":
-        data = request.get_json()
+        data = request.get_json(silent=True)
+        if data is None:
+            data = request.form.to_dict()
         if not data:
             return jsonify({"success": False, "message": "Invalid payload format."}), 400
 
@@ -656,7 +658,7 @@ def admin_automation_log():
 
     page = request.args.get("page", 1, type=int)
     pagination = db.paginate(
-        AutomationLog.query.order_by(AutomationLog.triggered_at.desc()),
+        AutomationLog.query.order_by(AutomationLog.triggered_at.desc()).statement,
         page=page, per_page=30, error_out=False
     )
     return render_template("admin_automation_log.html", pagination=pagination, entries=pagination.items)

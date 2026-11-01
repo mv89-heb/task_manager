@@ -539,8 +539,8 @@ def test_create_rule_via_route_with_invalid_data_shows_error(client, db_session)
         "name": "כלל שגוי", "trigger_event": "not_a_trigger",
         "action_type": "notify_all_admins",
     }, follow_redirects=True)
-    body = r.get_data(as_text=True)
-    assert "לא נתמך" in body
+    payload = r.get_json()
+    assert payload and "לא נתמך" in payload.get("message", "")
 
 
 def test_automation_log_page_renders(client, db_session):

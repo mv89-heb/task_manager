@@ -1,4 +1,5 @@
 import pytest
+from types import SimpleNamespace
 from app import db
 from app.models.task import Task
 from app.models.user import User
@@ -17,7 +18,7 @@ def get_or_create_admin(app):
         else:
             admin.set_password("pass123")
             db.session.commit()
-        return admin
+        return SimpleNamespace(id=admin.id, username=admin.username)
 
 def test_health_check(client):
     """בדיקת נקודת ניטור בריאות המערכת"""

@@ -64,10 +64,16 @@ class Config:
     MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', MAIL_USERNAME or 'noreply@taskmanager.local')
 
-    # קריטי עבור Neon: מגדירים את search_path=public באופן מפורש בכל חיבור.
-    # זה בטוח עכשיו כי אנחנו תמיד מתחברים ל-endpoint הישיר (לא ה-pooler),
-    # שכן תומך בפרמטר הזה בזמן החיבור.
+    # Neon direct connections can be closed while the app is idle. Validate a
+    # pooled connection before reuse and recycle it periodically to avoid
+    # handing stale SSL sockets to request handlers. Keep the pool bounded:
+    # this service runs a single default Gunicorn worker on Render.
     if database_url and database_url.startswith('postgresql'):
         SQLALCHEMY_ENGINE_OPTIONS = {
-            'connect_args': {'options': '-csearch_path=public'}
+            'connect_args': {'options': '-csearch_path=public'},
+            'pool_pre_ping': True,
+            'pool_recycle': 300,
+            'pool_size': 2,
+            'max_overflow': 1,
+            'pool_timeout': 30,
         }
