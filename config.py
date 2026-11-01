@@ -43,6 +43,11 @@ def _force_direct_neon_endpoint(url):
 if database_url and database_url.startswith('postgresql'):
     database_url = _force_direct_neon_endpoint(database_url)
 
+# SQLAlchemy 2.1 defaults postgresql:// to psycopg (v3). This service
+# explicitly installs psycopg2-binary, so select that driver deterministically.
+if database_url and database_url.startswith('postgresql://'):
+    database_url = database_url.replace('postgresql://', 'postgresql+psycopg2://', 1)
+
 
 class Config:
     # כאן אנחנו מושכים את המפתח הסודי מ-Render
