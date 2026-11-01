@@ -22,6 +22,12 @@ bp = Blueprint("tasks", __name__)
 # =========================================================
 # System Health Check & APIs (Phase 4.0 + 4.5)
 # =========================================================
+@bp.route("/health/live")
+def liveness_health_check():
+    """Fast liveness probe that does not depend on PostgreSQL availability."""
+    return jsonify({"status": "alive"}), 200
+
+
 @bp.route("/api/health")
 def health_check():
     """מספק נקודת חיבור (Readiness/Liveness Probe) לבדיקת זמינות מסד הנתונים"""

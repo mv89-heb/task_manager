@@ -67,3 +67,15 @@ def test_exports_with_phase4_fields(client, app):
     resp_pdf = client.get('/export/pdf')
     assert resp_pdf.status_code == 200
     assert resp_pdf.mimetype == 'application/pdf'
+
+
+def test_liveness_health_check_does_not_depend_on_database(client, monkeypatch):
+    def fail_if_database_is_touched(*args, **kwargs):
+        raise AssertionError("liveness check must not query the database")
+
+    monkeypatch.setattr(db.session, "execute", fail_if_database_is_touched)
+
+    response = client.get("/health/live")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"status": "alive"}
