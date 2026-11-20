@@ -14,7 +14,8 @@ from config import Config
 db = SQLAlchemy()
 login_manager = LoginManager()
 login_manager.login_view = 'tasks.login'
-login_manager.login_message = 'אנא התחבר כדי לגשת לעמוד זה.'
+# אין להציג Toast אוטומטי למשתמש אנונימי; הודעות יוצגו רק בעקבות פעולה יזומה.
+login_manager.login_message = None
 login_manager.login_message_category = 'danger'
 
 mail = Mail()
