@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <meta name="theme-color" content="#2454d6">
+    <meta name="theme-color" content="#2463eb">
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
     <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='icons/icon-192.png') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
@@ -14,7 +14,7 @@
     <title>מערכת ניהול משימות</title>
     <style>
         :root {
-            --brand-navy: #0f1c3f;
+            --brand-navy: #101c35;
             --brand-navy-light: #16274f;
             --brand-blue: #2454d6;
             --brand-blue-dark: #1a3fa8;
@@ -150,6 +150,7 @@
             .content { margin-right: 0; padding: 15px; margin-bottom: 75px; }
         }
     </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/brand-system.css') }}">
 </head>
 <body>
 
@@ -559,5 +560,6 @@
     })();
     {% endif %}
 </script>
+<script src="{{ url_for('static', filename='js/brand-intro.js') }}" defer></script>
 </body>
 </html>
