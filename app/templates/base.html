@@ -4,17 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <meta name="theme-color" content="#2454d6">
+    <meta name="theme-color" content="#2463eb">
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
     <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='icons/icon-192.png') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <title>מערכת ניהול משימות</title>
+    <title>Task Manager | ניהול משימות חכם</title>
     <style>
         :root {
-            --brand-navy: #0f1c3f;
+            --brand-navy: #101c35;
             --brand-navy-light: #16274f;
             --brand-blue: #2454d6;
             --brand-blue-dark: #1a3fa8;
@@ -150,6 +150,7 @@
             .content { margin-right: 0; padding: 15px; margin-bottom: 75px; }
         }
     </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/brand-system.css') }}">
 </head>
 <body>
 
@@ -180,7 +181,7 @@
 </div>
 
 <div class="sidebar">
-    <div class="sidebar-header"><i class="bi bi-check2-square"></i> TaskManager</div>
+    <div class="sidebar-header"><img class="brand-mark" src="{{ url_for('static', filename='icons/task-manager-mark.svg') }}" alt="" width="38" height="38"><span class="brand-wordmark">Task Manager<small>PLAN · FOCUS · COMPLETE</small></span></div>
     <a href="/" class="{% if request.endpoint == 'tasks.index' %}active{% endif %}"><i class="bi bi-list-task"></i> ניהול משימות</a>
     <a href="/kanban" class="{% if request.endpoint == 'tasks.kanban' %}active{% endif %}"><i class="bi bi-kanban"></i> לוח קנבן</a>
     <a href="/calendar" class="{% if request.endpoint == 'tasks.calendar' %}active{% endif %}"><i class="bi bi-calendar3"></i> לוח שנה חכם</a>
@@ -559,5 +560,6 @@
     })();
     {% endif %}
 </script>
+<script src="{{ url_for('static', filename='js/brand-intro.js') }}" defer></script>
 </body>
 </html>

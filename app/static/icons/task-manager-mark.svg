@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+<title id="title">Task Manager</title>
+<defs><linearGradient id="g" x1="12" y1="8" x2="116" y2="120" gradientUnits="userSpaceOnUse"><stop stop-color="#45D6CE"/><stop offset="1" stop-color="#2463EB"/></linearGradient></defs>
+<rect x="4" y="4" width="120" height="120" rx="30" fill="#101C35"/>
+<path d="M34 30h44a12 12 0 0 1 12 12v5" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" opacity=".2"/>
+<rect x="27" y="27" width="68" height="74" rx="15" fill="#1A2B49" stroke="url(#g)" stroke-width="5"/>
+<path d="m43 65 13 13 30-31" fill="none" stroke="url(#g)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M89 24h15M96.5 16.5v15" stroke="#45D6CE" stroke-width="5" stroke-linecap="round"/>
+</svg>
