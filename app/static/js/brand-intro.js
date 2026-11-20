@@ -1,8 +1,30 @@
-/* Branded entry sequence — login only */
+/* Branded entry sequence — show once per browser tab session, login only */
 (() => {
   const intro = document.getElementById('brandIntro');
   const form = document.getElementById('loginPanel');
   if (!intro || !form) return;
+
+  // A failed login or a refresh may render /login again. Do not replay the
+  // full-screen intro on every POST response or page reload in the same tab.
+  const seenKey = 'taskManagerBrandIntroSeen';
+  let alreadySeen = false;
+  try {
+    alreadySeen = window.sessionStorage.getItem(seenKey) === '1';
+  } catch (_) {
+    // Continue with the intro if browser storage is unavailable.
+  }
+
+  if (alreadySeen) {
+    form.classList.add('is-visible');
+    intro.remove();
+    return;
+  }
+
+  try {
+    window.sessionStorage.setItem(seenKey, '1');
+  } catch (_) {
+    // The animation still works; storage is only used to prevent replay.
+  }
 
   document.documentElement.classList.add('intro-pending');
   form.setAttribute('aria-hidden', 'true');
