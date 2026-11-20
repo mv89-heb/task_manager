@@ -181,7 +181,7 @@
 </div>
 
 <div class="sidebar">
-    <div class="sidebar-header"><i class="bi bi-check2-square"></i> TaskManager</div>
+    <div class="sidebar-header"><img class="brand-mark" src="{{ url_for('static', filename='icons/task-manager-mark.svg') }}" alt="" width="38" height="38"><span class="brand-wordmark">Task Manager<small>PLAN · FOCUS · COMPLETE</small></span></div>
     <a href="/" class="{% if request.endpoint == 'tasks.index' %}active{% endif %}"><i class="bi bi-list-task"></i> ניהול משימות</a>
     <a href="/kanban" class="{% if request.endpoint == 'tasks.kanban' %}active{% endif %}"><i class="bi bi-kanban"></i> לוח קנבן</a>
     <a href="/calendar" class="{% if request.endpoint == 'tasks.calendar' %}active{% endif %}"><i class="bi bi-calendar3"></i> לוח שנה חכם</a>
